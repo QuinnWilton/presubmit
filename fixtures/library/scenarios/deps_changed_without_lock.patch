@@ -1,0 +1,23 @@
+From 36b22f4070fd60f1e01befe3511fa67fc4574a9d Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Depend on nimble_options
+
+---
+ mix.exs | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/mix.exs b/mix.exs
+index 572a311..e9c0d33 100644
+--- a/mix.exs
++++ b/mix.exs
+@@ -9,7 +9,8 @@ defmodule Toolkit.MixProject do
+ 
+   defp deps do
+     [
+-      {:jason, "~> 1.4"}
++      {:jason, "~> 1.4"},
++      {:nimble_options, "~> 1.1"}
+     ]
+   end
+ end

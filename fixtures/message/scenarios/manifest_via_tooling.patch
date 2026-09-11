@@ -1,0 +1,19 @@
+From 13de9a95e2196efbac201a1bfa9b07304004abe0 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: [deps] fork jason
+
+Tooling: vendor-dep jason
+---
+ .tooling/manifest.json | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.tooling/manifest.json b/.tooling/manifest.json
+index 3f0f4f4..15821a5 100644
+--- a/.tooling/manifest.json
++++ b/.tooling/manifest.json
+@@ -1,3 +1,3 @@
+ {
+-  "forks": []
++  "forks": ["jason"]
+ }

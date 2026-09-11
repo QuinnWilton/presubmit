@@ -1,0 +1,18 @@
+From b33c86dc7519438878876e84f848d2e48b244fca Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: [argus] return a finding
+
+---
+ pentiment/lib/pentiment.ex | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/pentiment/lib/pentiment.ex b/pentiment/lib/pentiment.ex
+index c59e19c..157b6d4 100644
+--- a/pentiment/lib/pentiment.ex
++++ b/pentiment/lib/pentiment.ex
+@@ -1,3 +1,3 @@
+ defmodule Pentiment do
+-  def render(_diag), do: ""
++  def render(_diag), do: "rendered"
+ end

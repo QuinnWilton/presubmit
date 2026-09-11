@@ -1,0 +1,21 @@
+From b71cc3452dc207fe7c6b0b32afb77b97d705938b Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add name to users
+
+---
+ lib/demo/accounts/user.ex | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/lib/demo/accounts/user.ex b/lib/demo/accounts/user.ex
+index 561f5ed..c2dc95f 100644
+--- a/lib/demo/accounts/user.ex
++++ b/lib/demo/accounts/user.ex
+@@ -3,6 +3,7 @@ defmodule Demo.Accounts.User do
+ 
+   schema "users" do
+     field :email, :string
++    field :name, :string
+     timestamps()
+   end
+ end

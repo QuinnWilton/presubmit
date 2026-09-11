@@ -1,0 +1,38 @@
+From 35d2c5205ed196c4422ddf63234608074a7bb1e9 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Release 0.2.0
+
+---
+ CHANGELOG.md | 4 ++++
+ mix.exs      | 2 +-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..2505799 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## Unreleased
+ 
++## 0.2.0
++
++- Added `Toolkit.whisper/1`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/mix.exs b/mix.exs
+index 572a311..16ab0f2 100644
+--- a/mix.exs
++++ b/mix.exs
+@@ -1,7 +1,7 @@
+ defmodule Toolkit.MixProject do
+   use Mix.Project
+ 
+-  @version "0.1.0"
++  @version "0.2.0"
+ 
+   def project do
+     [app: :toolkit, version: @version, elixir: "~> 1.19", deps: deps()]

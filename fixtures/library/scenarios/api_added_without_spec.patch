@@ -1,0 +1,33 @@
+From 173f0840d4db2991c80cf4213433a8900c21d27c Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add whisper/1
+
+---
+ CHANGELOG.md   | 2 ++
+ lib/toolkit.ex | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..49fd2f8 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,8 @@
+ 
+ ## Unreleased
+ 
++- Added `Toolkit.whisper/1`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/lib/toolkit.ex b/lib/toolkit.ex
+index 269a776..ecfaaf5 100644
+--- a/lib/toolkit.ex
++++ b/lib/toolkit.ex
+@@ -6,4 +6,5 @@ defmodule Toolkit do
+ 
+   @spec shout(String.t()) :: String.t()
+   def shout(text), do: String.upcase(text) <> "!"
++  def whisper(text), do: String.downcase(text) <> "..."
+ end

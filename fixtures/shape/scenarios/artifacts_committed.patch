@@ -1,0 +1,49 @@
+From bd41452fcba9dcc9e43c3cc49b966620ef559ac5 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Update assets
+
+---
+ .DS_Store                 | Bin 0 -> 8 bytes
+ lib/shop/cart.ex.orig     |  12 ++++++++++++
+ priv/static/assets/app.js |   1 +
+ 3 files changed, 13 insertions(+)
+ create mode 100644 .DS_Store
+ create mode 100644 lib/shop/cart.ex.orig
+ create mode 100644 priv/static/assets/app.js
+
+diff --git a/.DS_Store b/.DS_Store
+new file mode 100644
+index 0000000000000000000000000000000000000000..3f49658fbdd43d0f51ec9b653c43b8aec6460a3c
+GIT binary patch
+literal 8
+PcmZQzU|@7AO)&%j18o6L
+
+literal 0
+HcmV?d00001
+
+diff --git a/lib/shop/cart.ex.orig b/lib/shop/cart.ex.orig
+new file mode 100644
+index 0000000..24d53f1
+--- /dev/null
++++ b/lib/shop/cart.ex.orig
+@@ -0,0 +1,12 @@
++defmodule Shop.Cart do
++  @moduledoc "A shopping cart."
++
++  defstruct items: []
++
++  @spec total(t()) :: non_neg_integer()
++  def total(%__MODULE__{items: items}) do
++    Enum.reduce(items, 0, fn item, acc -> acc + item.price * item.quantity end)
++  end
++
++  @type t :: %__MODULE__{items: [Shop.Cart.Item.t()]}
++end
+diff --git a/priv/static/assets/app.js b/priv/static/assets/app.js
+new file mode 100644
+index 0000000..b0be4c9
+--- /dev/null
++++ b/priv/static/assets/app.js
+@@ -0,0 +1 @@
++!function(){console.log('built')}();

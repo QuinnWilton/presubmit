@@ -1,0 +1,34 @@
+From 20b7032ed8cabbc176a885bf3b1109f70a63f258 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Round totals up
+
+---
+ lib/shop/cart.ex        | 2 +-
+ test/shop/cart_test.exs | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/lib/shop/cart.ex b/lib/shop/cart.ex
+index 24d53f1..0cb3ef9 100644
+--- a/lib/shop/cart.ex
++++ b/lib/shop/cart.ex
+@@ -5,7 +5,7 @@ defmodule Shop.Cart do
+ 
+   @spec total(t()) :: non_neg_integer()
+   def total(%__MODULE__{items: items}) do
+-    Enum.reduce(items, 0, fn item, acc -> acc + item.price * item.quantity end)
++    Enum.reduce(items, 0, fn item, acc -> acc + ceil(item.price * item.quantity) end)
+   end
+ 
+   @type t :: %__MODULE__{items: [Shop.Cart.Item.t()]}
+diff --git a/test/shop/cart_test.exs b/test/shop/cart_test.exs
+index 0f1ae39..982dc4c 100644
+--- a/test/shop/cart_test.exs
++++ b/test/shop/cart_test.exs
+@@ -4,5 +4,6 @@ defmodule Shop.CartTest do
+   test "total/1 sums price times quantity" do
+     cart = %Shop.Cart{items: [%Shop.Cart.Item{price: 3, quantity: 2}]}
+     assert Shop.Cart.total(cart) == 6
++    assert is_integer(Shop.Cart.total(cart))
+   end
+ end

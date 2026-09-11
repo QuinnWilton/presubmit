@@ -1,0 +1,28 @@
+From 5743502b1a82f6af0c5f35ee874eb96c6c0b6a6c Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: [argus] return a finding
+
+---
+ argus/lib/argus.ex         | 2 +-
+ pentiment/lib/pentiment.ex | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/argus/lib/argus.ex b/argus/lib/argus.ex
+index c55e19d..2063792 100644
+--- a/argus/lib/argus.ex
++++ b/argus/lib/argus.ex
+@@ -1,3 +1,3 @@
+ defmodule Argus do
+-  def analyze(_beam), do: []
++  def analyze(_beam), do: [:finding]
+ end
+diff --git a/pentiment/lib/pentiment.ex b/pentiment/lib/pentiment.ex
+index c59e19c..157b6d4 100644
+--- a/pentiment/lib/pentiment.ex
++++ b/pentiment/lib/pentiment.ex
+@@ -1,3 +1,3 @@
+ defmodule Pentiment do
+-  def render(_diag), do: ""
++  def render(_diag), do: "rendered"
+ end

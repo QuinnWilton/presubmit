@@ -1,0 +1,37 @@
+From 3b065f04d2a78c29242b6dd7a05bae58e8d294fd Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Remove shout/1
+
+Nobody used it and it conflicted with the new Text API.
+
+BREAKING CHANGE: Toolkit.shout/1 is gone; use String.upcase/1.
+---
+ CHANGELOG.md   | 2 ++
+ lib/toolkit.ex | 2 --
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..6112a54 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,8 @@
+ 
+ ## Unreleased
+ 
++- Removed `Toolkit.shout/1`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/lib/toolkit.ex b/lib/toolkit.ex
+index 269a776..9aaa8fb 100644
+--- a/lib/toolkit.ex
++++ b/lib/toolkit.ex
+@@ -4,6 +4,4 @@ defmodule Toolkit do
+   @spec greet(String.t()) :: String.t()
+   def greet(name), do: "Hello, #{name}!"
+ 
+-  @spec shout(String.t()) :: String.t()
+-  def shout(text), do: String.upcase(text) <> "!"
+ end

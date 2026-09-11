@@ -1,0 +1,19 @@
+From db5047890f6ab9bfceb7443c11b92fd23fcaa9eb Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: [argus] return a finding
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+---
+ argus/lib/argus.ex | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/argus/lib/argus.ex b/argus/lib/argus.ex
+index c55e19d..2063792 100644
+--- a/argus/lib/argus.ex
++++ b/argus/lib/argus.ex
+@@ -1,3 +1,3 @@
+ defmodule Argus do
+-  def analyze(_beam), do: []
++  def analyze(_beam), do: [:finding]
+ end

@@ -1,0 +1,21 @@
+From 6e5fff338698e668876bc1916471a8243381fe71 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Fix users index
+
+---
+ lib/demo_web/controllers/user_controller.ex | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/lib/demo_web/controllers/user_controller.ex b/lib/demo_web/controllers/user_controller.ex
+index a7ea145..5ec6f5c 100644
+--- a/lib/demo_web/controllers/user_controller.ex
++++ b/lib/demo_web/controllers/user_controller.ex
+@@ -2,6 +2,7 @@ defmodule DemoWeb.UserController do
+   use DemoWeb, :controller
+ 
+   def index(conn, _params) do
++    IO.inspect(conn.assigns, label: "assigns")
+     render(conn, :index, users: Demo.Accounts.list_users())
+   end
+ end

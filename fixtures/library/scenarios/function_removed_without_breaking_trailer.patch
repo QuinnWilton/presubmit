@@ -1,0 +1,34 @@
+From bceaab6ad25d35fa57236be3d6c15aa9d699c1f1 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Remove shout/1
+
+---
+ CHANGELOG.md   | 2 ++
+ lib/toolkit.ex | 2 --
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..6112a54 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,8 @@
+ 
+ ## Unreleased
+ 
++- Removed `Toolkit.shout/1`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/lib/toolkit.ex b/lib/toolkit.ex
+index 269a776..9aaa8fb 100644
+--- a/lib/toolkit.ex
++++ b/lib/toolkit.ex
+@@ -4,6 +4,4 @@ defmodule Toolkit do
+   @spec greet(String.t()) :: String.t()
+   def greet(name), do: "Hello, #{name}!"
+ 
+-  @spec shout(String.t()) :: String.t()
+-  def shout(text), do: String.upcase(text) <> "!"
+ end

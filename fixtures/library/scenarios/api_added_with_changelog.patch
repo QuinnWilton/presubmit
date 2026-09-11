@@ -1,0 +1,45 @@
+From b322d9d2529efd520b5fda039cd1a6993974c2b1 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add whisper/1
+
+---
+ CHANGELOG.md          | 2 ++
+ lib/toolkit.ex        | 2 ++
+ test/toolkit_test.exs | 1 +
+ 3 files changed, 5 insertions(+)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..49fd2f8 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,8 @@
+ 
+ ## Unreleased
+ 
++- Added `Toolkit.whisper/1`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/lib/toolkit.ex b/lib/toolkit.ex
+index 269a776..d6adc76 100644
+--- a/lib/toolkit.ex
++++ b/lib/toolkit.ex
+@@ -6,4 +6,6 @@ defmodule Toolkit do
+ 
+   @spec shout(String.t()) :: String.t()
+   def shout(text), do: String.upcase(text) <> "!"
++  @spec whisper(String.t()) :: String.t()
++  def whisper(text), do: String.downcase(text) <> "..."
+ end
+diff --git a/test/toolkit_test.exs b/test/toolkit_test.exs
+index c0cfb5b..d5bc7cb 100644
+--- a/test/toolkit_test.exs
++++ b/test/toolkit_test.exs
+@@ -4,4 +4,5 @@ defmodule ToolkitTest do
+   test "greet/1" do
+     assert Toolkit.greet("Ada") == "Hello, Ada!"
+   end
++  test "whisper/1", do: assert Toolkit.whisper("A") == "a..."
+ end

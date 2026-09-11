@@ -1,0 +1,20 @@
+From 4f29dcd51592b7d8781f59a6b06be6bef1c6eacc Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Document Shop.Cart
+
+---
+ lib/shop/cart.ex | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/shop/cart.ex b/lib/shop/cart.ex
+index 24d53f1..1fe9fe0 100644
+--- a/lib/shop/cart.ex
++++ b/lib/shop/cart.ex
+@@ -1,5 +1,5 @@
+ defmodule Shop.Cart do
+-  @moduledoc "A shopping cart."
++  @moduledoc "A shopping cart: line items with a running total."
+ 
+   defstruct items: []
+ 

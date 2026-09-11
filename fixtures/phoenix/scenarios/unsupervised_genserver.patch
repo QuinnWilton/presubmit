@@ -1,0 +1,24 @@
+From 44a9183c864cdf1af192765351f575d63252e172 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add cache
+
+---
+ lib/demo/cache.ex | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+ create mode 100644 lib/demo/cache.ex
+
+diff --git a/lib/demo/cache.ex b/lib/demo/cache.ex
+new file mode 100644
+index 0000000..861a745
+--- /dev/null
++++ b/lib/demo/cache.ex
+@@ -0,0 +1,8 @@
++defmodule Demo.Cache do
++  use GenServer
++
++  def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
++
++  @impl true
++  def init(_opts), do: {:ok, %{}}
++end

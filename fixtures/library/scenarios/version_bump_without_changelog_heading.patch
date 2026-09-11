@@ -1,0 +1,22 @@
+From 3b5d6709e40911e5732d036474a64009393a18ac Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Release 0.2.0
+
+---
+ mix.exs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mix.exs b/mix.exs
+index 572a311..16ab0f2 100644
+--- a/mix.exs
++++ b/mix.exs
+@@ -1,7 +1,7 @@
+ defmodule Toolkit.MixProject do
+   use Mix.Project
+ 
+-  @version "0.1.0"
++  @version "0.2.0"
+ 
+   def project do
+     [app: :toolkit, version: @version, elixir: "~> 1.19", deps: deps()]

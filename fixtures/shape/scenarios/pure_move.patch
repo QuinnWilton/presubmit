@@ -1,0 +1,38 @@
+From 2a876e83a38caba6619ff1954ba4562d6356de89 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Move Shop.Cart under Shop.Checkout
+
+---
+ lib/shop/{ => checkout}/cart.ex        | 2 +-
+ test/shop/{ => checkout}/cart_test.exs | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+ rename lib/shop/{ => checkout}/cart.ex (89%)
+ rename test/shop/{ => checkout}/cart_test.exs (84%)
+
+diff --git a/lib/shop/cart.ex b/lib/shop/checkout/cart.ex
+similarity index 89%
+rename from lib/shop/cart.ex
+rename to lib/shop/checkout/cart.ex
+index 24d53f1..b7b61c3 100644
+--- a/lib/shop/cart.ex
++++ b/lib/shop/checkout/cart.ex
+@@ -1,4 +1,4 @@
+-defmodule Shop.Cart do
++defmodule Shop.Checkout.Cart do
+   @moduledoc "A shopping cart."
+ 
+   defstruct items: []
+diff --git a/test/shop/cart_test.exs b/test/shop/checkout/cart_test.exs
+similarity index 84%
+rename from test/shop/cart_test.exs
+rename to test/shop/checkout/cart_test.exs
+index 0f1ae39..b22c798 100644
+--- a/test/shop/cart_test.exs
++++ b/test/shop/checkout/cart_test.exs
+@@ -1,4 +1,4 @@
+-defmodule Shop.CartTest do
++defmodule Shop.Checkout.CartTest do
+   use ExUnit.Case, async: true
+ 
+   test "total/1 sums price times quantity" do

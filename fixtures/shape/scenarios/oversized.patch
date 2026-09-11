@@ -1,0 +1,338 @@
+From 398e5f8f497d1c12ffb214cef383bc5e3de2e41c Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Generate modules
+
+---
+ lib/shop/gen/mod_1.ex  | 3 +++
+ lib/shop/gen/mod_10.ex | 3 +++
+ lib/shop/gen/mod_11.ex | 3 +++
+ lib/shop/gen/mod_12.ex | 3 +++
+ lib/shop/gen/mod_13.ex | 3 +++
+ lib/shop/gen/mod_14.ex | 3 +++
+ lib/shop/gen/mod_15.ex | 3 +++
+ lib/shop/gen/mod_16.ex | 3 +++
+ lib/shop/gen/mod_17.ex | 3 +++
+ lib/shop/gen/mod_18.ex | 3 +++
+ lib/shop/gen/mod_19.ex | 3 +++
+ lib/shop/gen/mod_2.ex  | 3 +++
+ lib/shop/gen/mod_20.ex | 3 +++
+ lib/shop/gen/mod_21.ex | 3 +++
+ lib/shop/gen/mod_22.ex | 3 +++
+ lib/shop/gen/mod_23.ex | 3 +++
+ lib/shop/gen/mod_24.ex | 3 +++
+ lib/shop/gen/mod_25.ex | 3 +++
+ lib/shop/gen/mod_26.ex | 3 +++
+ lib/shop/gen/mod_27.ex | 3 +++
+ lib/shop/gen/mod_28.ex | 3 +++
+ lib/shop/gen/mod_29.ex | 3 +++
+ lib/shop/gen/mod_3.ex  | 3 +++
+ lib/shop/gen/mod_30.ex | 3 +++
+ lib/shop/gen/mod_4.ex  | 3 +++
+ lib/shop/gen/mod_5.ex  | 3 +++
+ lib/shop/gen/mod_6.ex  | 3 +++
+ lib/shop/gen/mod_7.ex  | 3 +++
+ lib/shop/gen/mod_8.ex  | 3 +++
+ lib/shop/gen/mod_9.ex  | 3 +++
+ 30 files changed, 90 insertions(+)
+ create mode 100644 lib/shop/gen/mod_1.ex
+ create mode 100644 lib/shop/gen/mod_10.ex
+ create mode 100644 lib/shop/gen/mod_11.ex
+ create mode 100644 lib/shop/gen/mod_12.ex
+ create mode 100644 lib/shop/gen/mod_13.ex
+ create mode 100644 lib/shop/gen/mod_14.ex
+ create mode 100644 lib/shop/gen/mod_15.ex
+ create mode 100644 lib/shop/gen/mod_16.ex
+ create mode 100644 lib/shop/gen/mod_17.ex
+ create mode 100644 lib/shop/gen/mod_18.ex
+ create mode 100644 lib/shop/gen/mod_19.ex
+ create mode 100644 lib/shop/gen/mod_2.ex
+ create mode 100644 lib/shop/gen/mod_20.ex
+ create mode 100644 lib/shop/gen/mod_21.ex
+ create mode 100644 lib/shop/gen/mod_22.ex
+ create mode 100644 lib/shop/gen/mod_23.ex
+ create mode 100644 lib/shop/gen/mod_24.ex
+ create mode 100644 lib/shop/gen/mod_25.ex
+ create mode 100644 lib/shop/gen/mod_26.ex
+ create mode 100644 lib/shop/gen/mod_27.ex
+ create mode 100644 lib/shop/gen/mod_28.ex
+ create mode 100644 lib/shop/gen/mod_29.ex
+ create mode 100644 lib/shop/gen/mod_3.ex
+ create mode 100644 lib/shop/gen/mod_30.ex
+ create mode 100644 lib/shop/gen/mod_4.ex
+ create mode 100644 lib/shop/gen/mod_5.ex
+ create mode 100644 lib/shop/gen/mod_6.ex
+ create mode 100644 lib/shop/gen/mod_7.ex
+ create mode 100644 lib/shop/gen/mod_8.ex
+ create mode 100644 lib/shop/gen/mod_9.ex
+
+diff --git a/lib/shop/gen/mod_1.ex b/lib/shop/gen/mod_1.ex
+new file mode 100644
+index 0000000..2b41a47
+--- /dev/null
++++ b/lib/shop/gen/mod_1.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod1 do
++  def n, do: 1
++end
+diff --git a/lib/shop/gen/mod_10.ex b/lib/shop/gen/mod_10.ex
+new file mode 100644
+index 0000000..d0e7dde
+--- /dev/null
++++ b/lib/shop/gen/mod_10.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod10 do
++  def n, do: 10
++end
+diff --git a/lib/shop/gen/mod_11.ex b/lib/shop/gen/mod_11.ex
+new file mode 100644
+index 0000000..a153591
+--- /dev/null
++++ b/lib/shop/gen/mod_11.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod11 do
++  def n, do: 11
++end
+diff --git a/lib/shop/gen/mod_12.ex b/lib/shop/gen/mod_12.ex
+new file mode 100644
+index 0000000..15f9264
+--- /dev/null
++++ b/lib/shop/gen/mod_12.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod12 do
++  def n, do: 12
++end
+diff --git a/lib/shop/gen/mod_13.ex b/lib/shop/gen/mod_13.ex
+new file mode 100644
+index 0000000..2312bc6
+--- /dev/null
++++ b/lib/shop/gen/mod_13.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod13 do
++  def n, do: 13
++end
+diff --git a/lib/shop/gen/mod_14.ex b/lib/shop/gen/mod_14.ex
+new file mode 100644
+index 0000000..75edc17
+--- /dev/null
++++ b/lib/shop/gen/mod_14.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod14 do
++  def n, do: 14
++end
+diff --git a/lib/shop/gen/mod_15.ex b/lib/shop/gen/mod_15.ex
+new file mode 100644
+index 0000000..91cc0b7
+--- /dev/null
++++ b/lib/shop/gen/mod_15.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod15 do
++  def n, do: 15
++end
+diff --git a/lib/shop/gen/mod_16.ex b/lib/shop/gen/mod_16.ex
+new file mode 100644
+index 0000000..79ac046
+--- /dev/null
++++ b/lib/shop/gen/mod_16.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod16 do
++  def n, do: 16
++end
+diff --git a/lib/shop/gen/mod_17.ex b/lib/shop/gen/mod_17.ex
+new file mode 100644
+index 0000000..e2a31e9
+--- /dev/null
++++ b/lib/shop/gen/mod_17.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod17 do
++  def n, do: 17
++end
+diff --git a/lib/shop/gen/mod_18.ex b/lib/shop/gen/mod_18.ex
+new file mode 100644
+index 0000000..90db691
+--- /dev/null
++++ b/lib/shop/gen/mod_18.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod18 do
++  def n, do: 18
++end
+diff --git a/lib/shop/gen/mod_19.ex b/lib/shop/gen/mod_19.ex
+new file mode 100644
+index 0000000..72a3546
+--- /dev/null
++++ b/lib/shop/gen/mod_19.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod19 do
++  def n, do: 19
++end
+diff --git a/lib/shop/gen/mod_2.ex b/lib/shop/gen/mod_2.ex
+new file mode 100644
+index 0000000..497730e
+--- /dev/null
++++ b/lib/shop/gen/mod_2.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod2 do
++  def n, do: 2
++end
+diff --git a/lib/shop/gen/mod_20.ex b/lib/shop/gen/mod_20.ex
+new file mode 100644
+index 0000000..c0d386b
+--- /dev/null
++++ b/lib/shop/gen/mod_20.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod20 do
++  def n, do: 20
++end
+diff --git a/lib/shop/gen/mod_21.ex b/lib/shop/gen/mod_21.ex
+new file mode 100644
+index 0000000..565cd0f
+--- /dev/null
++++ b/lib/shop/gen/mod_21.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod21 do
++  def n, do: 21
++end
+diff --git a/lib/shop/gen/mod_22.ex b/lib/shop/gen/mod_22.ex
+new file mode 100644
+index 0000000..8f7ad43
+--- /dev/null
++++ b/lib/shop/gen/mod_22.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod22 do
++  def n, do: 22
++end
+diff --git a/lib/shop/gen/mod_23.ex b/lib/shop/gen/mod_23.ex
+new file mode 100644
+index 0000000..1f46eb3
+--- /dev/null
++++ b/lib/shop/gen/mod_23.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod23 do
++  def n, do: 23
++end
+diff --git a/lib/shop/gen/mod_24.ex b/lib/shop/gen/mod_24.ex
+new file mode 100644
+index 0000000..faa11e0
+--- /dev/null
++++ b/lib/shop/gen/mod_24.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod24 do
++  def n, do: 24
++end
+diff --git a/lib/shop/gen/mod_25.ex b/lib/shop/gen/mod_25.ex
+new file mode 100644
+index 0000000..b33e8d4
+--- /dev/null
++++ b/lib/shop/gen/mod_25.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod25 do
++  def n, do: 25
++end
+diff --git a/lib/shop/gen/mod_26.ex b/lib/shop/gen/mod_26.ex
+new file mode 100644
+index 0000000..5534b1a
+--- /dev/null
++++ b/lib/shop/gen/mod_26.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod26 do
++  def n, do: 26
++end
+diff --git a/lib/shop/gen/mod_27.ex b/lib/shop/gen/mod_27.ex
+new file mode 100644
+index 0000000..6f808c3
+--- /dev/null
++++ b/lib/shop/gen/mod_27.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod27 do
++  def n, do: 27
++end
+diff --git a/lib/shop/gen/mod_28.ex b/lib/shop/gen/mod_28.ex
+new file mode 100644
+index 0000000..350e1ec
+--- /dev/null
++++ b/lib/shop/gen/mod_28.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod28 do
++  def n, do: 28
++end
+diff --git a/lib/shop/gen/mod_29.ex b/lib/shop/gen/mod_29.ex
+new file mode 100644
+index 0000000..dd638e9
+--- /dev/null
++++ b/lib/shop/gen/mod_29.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod29 do
++  def n, do: 29
++end
+diff --git a/lib/shop/gen/mod_3.ex b/lib/shop/gen/mod_3.ex
+new file mode 100644
+index 0000000..2bc9d41
+--- /dev/null
++++ b/lib/shop/gen/mod_3.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod3 do
++  def n, do: 3
++end
+diff --git a/lib/shop/gen/mod_30.ex b/lib/shop/gen/mod_30.ex
+new file mode 100644
+index 0000000..33050a6
+--- /dev/null
++++ b/lib/shop/gen/mod_30.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod30 do
++  def n, do: 30
++end
+diff --git a/lib/shop/gen/mod_4.ex b/lib/shop/gen/mod_4.ex
+new file mode 100644
+index 0000000..aefc99b
+--- /dev/null
++++ b/lib/shop/gen/mod_4.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod4 do
++  def n, do: 4
++end
+diff --git a/lib/shop/gen/mod_5.ex b/lib/shop/gen/mod_5.ex
+new file mode 100644
+index 0000000..8a6f625
+--- /dev/null
++++ b/lib/shop/gen/mod_5.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod5 do
++  def n, do: 5
++end
+diff --git a/lib/shop/gen/mod_6.ex b/lib/shop/gen/mod_6.ex
+new file mode 100644
+index 0000000..cc5600b
+--- /dev/null
++++ b/lib/shop/gen/mod_6.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod6 do
++  def n, do: 6
++end
+diff --git a/lib/shop/gen/mod_7.ex b/lib/shop/gen/mod_7.ex
+new file mode 100644
+index 0000000..c8fbacc
+--- /dev/null
++++ b/lib/shop/gen/mod_7.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod7 do
++  def n, do: 7
++end
+diff --git a/lib/shop/gen/mod_8.ex b/lib/shop/gen/mod_8.ex
+new file mode 100644
+index 0000000..758505c
+--- /dev/null
++++ b/lib/shop/gen/mod_8.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod8 do
++  def n, do: 8
++end
+diff --git a/lib/shop/gen/mod_9.ex b/lib/shop/gen/mod_9.ex
+new file mode 100644
+index 0000000..0256427
+--- /dev/null
++++ b/lib/shop/gen/mod_9.ex
+@@ -0,0 +1,3 @@
++defmodule Shop.Gen.Mod9 do
++  def n, do: 9
++end

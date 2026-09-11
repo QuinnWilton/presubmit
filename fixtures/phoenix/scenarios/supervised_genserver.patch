@@ -1,0 +1,37 @@
+From 3275a64b449e522ce4c0110d0c529e77beb36158 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add cache
+
+---
+ lib/demo/application.ex | 1 +
+ lib/demo/cache.ex       | 8 ++++++++
+ 2 files changed, 9 insertions(+)
+ create mode 100644 lib/demo/cache.ex
+
+diff --git a/lib/demo/application.ex b/lib/demo/application.ex
+index 9473c52..f98c110 100644
+--- a/lib/demo/application.ex
++++ b/lib/demo/application.ex
+@@ -5,6 +5,7 @@ defmodule Demo.Application do
+   def start(_type, _args) do
+     children = [
+       Demo.Repo,
++      Demo.Cache,
+       DemoWeb.Endpoint
+     ]
+ 
+diff --git a/lib/demo/cache.ex b/lib/demo/cache.ex
+new file mode 100644
+index 0000000..861a745
+--- /dev/null
++++ b/lib/demo/cache.ex
+@@ -0,0 +1,8 @@
++defmodule Demo.Cache do
++  use GenServer
++
++  def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
++
++  @impl true
++  def init(_opts), do: {:ok, %{}}
++end

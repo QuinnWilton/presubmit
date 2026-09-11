@@ -1,0 +1,50 @@
+From e35549826e82471d60856b6d88573318f5fefd64 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Release 0.2.0
+
+---
+ CHANGELOG.md   | 4 ++++
+ lib/toolkit.ex | 2 ++
+ mix.exs        | 2 +-
+ 3 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..2505799 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,10 @@
+ 
+ ## Unreleased
+ 
++## 0.2.0
++
++- Added `Toolkit.whisper/1`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/lib/toolkit.ex b/lib/toolkit.ex
+index 269a776..d6adc76 100644
+--- a/lib/toolkit.ex
++++ b/lib/toolkit.ex
+@@ -6,4 +6,6 @@ defmodule Toolkit do
+ 
+   @spec shout(String.t()) :: String.t()
+   def shout(text), do: String.upcase(text) <> "!"
++  @spec whisper(String.t()) :: String.t()
++  def whisper(text), do: String.downcase(text) <> "..."
+ end
+diff --git a/mix.exs b/mix.exs
+index 572a311..16ab0f2 100644
+--- a/mix.exs
++++ b/mix.exs
+@@ -1,7 +1,7 @@
+ defmodule Toolkit.MixProject do
+   use Mix.Project
+ 
+-  @version "0.1.0"
++  @version "0.2.0"
+ 
+   def project do
+     [app: :toolkit, version: @version, elixir: "~> 1.19", deps: deps()]

@@ -1,0 +1,36 @@
+From aa0d18faef0214d3d95f9629cea5170860aa29e8 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add Toolkit.Case
+
+---
+ CHANGELOG.md        | 2 ++
+ lib/toolkit/case.ex | 6 ++++++
+ 2 files changed, 8 insertions(+)
+ create mode 100644 lib/toolkit/case.ex
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..1717662 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,8 @@
+ 
+ ## Unreleased
+ 
++- Added `Toolkit.Case`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/lib/toolkit/case.ex b/lib/toolkit/case.ex
+new file mode 100644
+index 0000000..654d004
+--- /dev/null
++++ b/lib/toolkit/case.ex
+@@ -0,0 +1,6 @@
++defmodule Toolkit.Case do
++  @moduledoc "Case conversion."
++
++  @spec snake(String.t()) :: String.t()
++  def snake(text), do: text |> String.downcase() |> String.replace(" ", "_")
++end

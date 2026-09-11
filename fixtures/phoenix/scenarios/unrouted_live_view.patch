@@ -1,0 +1,22 @@
+From fab68d3722a3f929d070a49247458a2872c34f45 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add posts live view
+
+---
+ lib/demo_web/live/post_live.ex | 6 ++++++
+ 1 file changed, 6 insertions(+)
+ create mode 100644 lib/demo_web/live/post_live.ex
+
+diff --git a/lib/demo_web/live/post_live.ex b/lib/demo_web/live/post_live.ex
+new file mode 100644
+index 0000000..da4efc3
+--- /dev/null
++++ b/lib/demo_web/live/post_live.ex
+@@ -0,0 +1,6 @@
++defmodule DemoWeb.PostLive do
++  use DemoWeb, :live_view
++
++  @impl true
++  def mount(_params, _session, socket), do: {:ok, assign(socket, posts: Demo.Blog.list_posts())}
++end

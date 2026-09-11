@@ -1,0 +1,38 @@
+From 983b7be9dda70ff14422e5ca8aa5c977ef8435be Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add posts index
+
+---
+ lib/demo_web/controllers/post_controller.ex        | 7 +++++++
+ test/demo_web/controllers/post_controller_test.exs | 7 +++++++
+ 2 files changed, 14 insertions(+)
+ create mode 100644 lib/demo_web/controllers/post_controller.ex
+ create mode 100644 test/demo_web/controllers/post_controller_test.exs
+
+diff --git a/lib/demo_web/controllers/post_controller.ex b/lib/demo_web/controllers/post_controller.ex
+new file mode 100644
+index 0000000..23137f2
+--- /dev/null
++++ b/lib/demo_web/controllers/post_controller.ex
+@@ -0,0 +1,7 @@
++defmodule DemoWeb.PostController do
++  use DemoWeb, :controller
++
++  def index(conn, _params) do
++    render(conn, :index, posts: Demo.Blog.list_posts())
++  end
++end
+diff --git a/test/demo_web/controllers/post_controller_test.exs b/test/demo_web/controllers/post_controller_test.exs
+new file mode 100644
+index 0000000..9d407e2
+--- /dev/null
++++ b/test/demo_web/controllers/post_controller_test.exs
+@@ -0,0 +1,7 @@
++defmodule DemoWeb.PostControllerTest do
++  use DemoWeb.ConnCase, async: true
++
++  test "index", %{conn: conn} do
++    assert html_response(get(conn, "/"), 200)
++  end
++end

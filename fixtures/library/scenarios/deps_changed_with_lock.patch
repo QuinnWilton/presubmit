@@ -1,0 +1,33 @@
+From 985c1ab98f4d774cc06c329650fd01ead6f8570e Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Depend on nimble_options
+
+---
+ mix.exs  | 3 ++-
+ mix.lock | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/mix.exs b/mix.exs
+index 572a311..e9c0d33 100644
+--- a/mix.exs
++++ b/mix.exs
+@@ -9,7 +9,8 @@ defmodule Toolkit.MixProject do
+ 
+   defp deps do
+     [
+-      {:jason, "~> 1.4"}
++      {:jason, "~> 1.4"},
++      {:nimble_options, "~> 1.1"}
+     ]
+   end
+ end
+diff --git a/mix.lock b/mix.lock
+index 42966b6..fd39f27 100644
+--- a/mix.lock
++++ b/mix.lock
+@@ -1,3 +1,4 @@
+ %{
+   "jason": {:hex, :jason, "1.4.4", "b9226785a9aa77b6857ca22832cffa5d5011a667207eb2a0ad56adb5db443b8a", [:mix], [], "hexpm", "c5eb0cab91f094599f94d55bc63409236a8ec69a21a67814fe5c62c9c33a9aeb"},
++  "nimble_options": {:hex, :nimble_options, "1.1.1", "abc", [:mix], [], "hexpm", "def"},
+ }

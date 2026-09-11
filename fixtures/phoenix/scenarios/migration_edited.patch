@@ -1,0 +1,22 @@
+From 764dbc0c198257966adc5bda2f48b1ce3cf0d10f Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Make email non-null
+
+---
+ priv/repo/migrations/20260201000000_add_email_to_users.exs | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/priv/repo/migrations/20260201000000_add_email_to_users.exs b/priv/repo/migrations/20260201000000_add_email_to_users.exs
+index 2023558..91685c4 100644
+--- a/priv/repo/migrations/20260201000000_add_email_to_users.exs
++++ b/priv/repo/migrations/20260201000000_add_email_to_users.exs
+@@ -3,7 +3,7 @@ defmodule Demo.Repo.Migrations.AddEmailToUsers do
+ 
+   def change do
+     alter table(:users) do
+-      add :email, :string
++      add :email, :string, null: false
+     end
+   end
+ end

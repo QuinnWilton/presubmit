@@ -1,0 +1,25 @@
+From c07fb0cc1a550c6a2577c6578a5b9dce97f4b61a Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Index users by email
+
+---
+ .../repo/migrations/20260301000000_index_users_email.exs | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+ create mode 100644 priv/repo/migrations/20260301000000_index_users_email.exs
+
+diff --git a/priv/repo/migrations/20260301000000_index_users_email.exs b/priv/repo/migrations/20260301000000_index_users_email.exs
+new file mode 100644
+index 0000000..3b379ba
+--- /dev/null
++++ b/priv/repo/migrations/20260301000000_index_users_email.exs
+@@ -0,0 +1,9 @@
++defmodule Demo.Repo.Migrations.IndexUsersEmail do
++  use Ecto.Migration
++  @disable_ddl_transaction true
++  @disable_migration_lock true
++
++  def change do
++    create index(:users, [:email], concurrently: true)
++  end
++end

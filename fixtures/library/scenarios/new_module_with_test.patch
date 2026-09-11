@@ -1,0 +1,47 @@
+From 48dfd32555736fd0fa4807237227d6b23a895c61 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Add Toolkit.Case
+
+---
+ CHANGELOG.md               | 2 ++
+ lib/toolkit/case.ex        | 6 ++++++
+ test/toolkit/case_test.exs | 3 +++
+ 3 files changed, 11 insertions(+)
+ create mode 100644 lib/toolkit/case.ex
+ create mode 100644 test/toolkit/case_test.exs
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 6aa79af..1717662 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -2,6 +2,8 @@
+ 
+ ## Unreleased
+ 
++- Added `Toolkit.Case`.
++
+ ## 0.1.0
+ 
+ - Initial release.
+diff --git a/lib/toolkit/case.ex b/lib/toolkit/case.ex
+new file mode 100644
+index 0000000..654d004
+--- /dev/null
++++ b/lib/toolkit/case.ex
+@@ -0,0 +1,6 @@
++defmodule Toolkit.Case do
++  @moduledoc "Case conversion."
++
++  @spec snake(String.t()) :: String.t()
++  def snake(text), do: text |> String.downcase() |> String.replace(" ", "_")
++end
+diff --git a/test/toolkit/case_test.exs b/test/toolkit/case_test.exs
+new file mode 100644
+index 0000000..e4a2316
+--- /dev/null
++++ b/test/toolkit/case_test.exs
+@@ -0,0 +1,3 @@
++defmodule Toolkit.CaseTest do
++  use ExUnit.Case, async: true
++end
