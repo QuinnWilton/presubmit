@@ -27,7 +27,7 @@ defmodule AssertCommit.Commit do
   @type person :: %{name: String.t(), email: String.t(), date: DateTime.t()}
 
   @type t :: %__MODULE__{
-          source: :head | :rev | :staged | :synthetic,
+          source: :head | :rev | :staged | :worktree | :synthetic,
           sha: String.t() | nil,
           parents: [String.t()],
           author: person() | nil,
@@ -108,16 +108,20 @@ defmodule AssertCommit.Commit do
   def staged(opts \\ []) do
     repo = repo_path(opts)
 
-    before_oid =
-      case Git.rev_parse(repo, "HEAD^{tree}") do
-        {:ok, oid} -> oid
-        {:error, _} -> Git.empty_tree(repo)
-      end
-
     after_oid =
       case Git.write_index_tree(repo) do
         {:ok, oid} -> oid
         {:error, error} -> raise error
+      end
+
+    against_head(repo, after_oid)
+  end
+
+  defp against_head(repo, after_oid) do
+    before_oid =
+      case Git.rev_parse(repo, "HEAD^{tree}") do
+        {:ok, oid} -> oid
+        {:error, _} -> Git.empty_tree(repo)
       end
 
     before = Tree.from_git(repo, before_oid)
@@ -129,6 +133,26 @@ defmodule AssertCommit.Commit do
       after: after_tree,
       changes: git_changes(repo, before, after_tree)
     })
+  end
+
+  @doc """
+  Loads the working directory of the repository at `opts[:repo]` as a change
+  set against `HEAD`: staged and unstaged edits and untracked files alike.
+
+  Like `staged/1`, the result has no `sha` or `message`. The repository's
+  index is not touched (see `AssertCommit.Git.write_worktree_tree/1`).
+  """
+  @spec worktree(keyword()) :: t()
+  def worktree(opts \\ []) do
+    repo = repo_path(opts)
+
+    after_oid =
+      case Git.write_worktree_tree(repo) do
+        {:ok, oid} -> oid
+        {:error, error} -> raise error
+      end
+
+    %{against_head(repo, after_oid) | source: :worktree}
   end
 
   @doc """

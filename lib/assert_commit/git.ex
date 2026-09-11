@@ -45,9 +45,10 @@ defmodule AssertCommit.Git do
   @doc """
   Runs `git` with `args` inside `repo`.
   """
-  @spec run(repo(), [String.t()]) :: {:ok, binary()} | {:error, GitError.t()}
-  def run(repo, args) do
-    case System.cmd("git", args, cd: repo, stderr_to_stdout: true, env: isolated_env()) do
+  @spec run(repo(), [String.t()], [{String.t(), String.t()}]) ::
+          {:ok, binary()} | {:error, GitError.t()}
+  def run(repo, args, env \\ []) do
+    case System.cmd("git", args, cd: repo, stderr_to_stdout: true, env: isolated_env() ++ env) do
       {output, 0} ->
         {:ok, output}
 
@@ -153,6 +154,55 @@ defmodule AssertCommit.Git do
   def write_index_tree(repo) do
     with {:ok, out} <- run(repo, ["write-tree"]) do
       {:ok, String.trim(out)}
+    end
+  end
+
+  @doc """
+  Writes the working directory to a tree object and returns its id, without
+  touching the repository's own index.
+
+  A temporary index is seeded from `HEAD` (or left empty on an unborn
+  branch), everything on disk is added to it honouring `.gitignore`, and the
+  result is written as a tree. Only loose objects are created; `git gc`
+  reclaims them.
+  """
+  @spec write_worktree_tree(repo()) :: {:ok, oid()} | {:error, GitError.t()}
+  def write_worktree_tree(repo) do
+    index =
+      Path.join(System.tmp_dir!(), "assert_commit_index_#{System.unique_integer([:positive])}")
+
+    env = [{"GIT_INDEX_FILE", index}]
+
+    try do
+      with :ok <- seed_index(repo, env),
+           {:ok, _} <- run(repo, ["add", "-A", "--", "."], env),
+           {:ok, out} <- run(repo, ["write-tree"], env) do
+        {:ok, String.trim(out)}
+      end
+    after
+      File.rm(index)
+    end
+  end
+
+  defp seed_index(repo, env) do
+    case run(repo, ["rev-parse", "--verify", "--quiet", "HEAD^{tree}"]) do
+      {:ok, _} ->
+        with {:ok, _} <- run(repo, ["read-tree", "HEAD"], env), do: :ok
+
+      {:error, _} ->
+        :ok
+    end
+  end
+
+  @doc """
+  Whether anything on disk differs from `HEAD`: staged or unstaged edits, or
+  untracked files that are not ignored.
+  """
+  @spec dirty?(repo()) :: boolean()
+  def dirty?(repo) do
+    case run(repo, ["status", "--porcelain", "--untracked-files=all"]) do
+      {:ok, out} -> String.trim(out) != ""
+      {:error, error} -> raise error
     end
   end
 
