@@ -28,6 +28,7 @@ defmodule AssertCommit.Source.Facts do
       spec?: false,
       doc: nil,
       deprecated?: false,
+      impl?: false,
       clauses: []
     ]
 
@@ -43,6 +44,7 @@ defmodule AssertCommit.Source.Facts do
             spec?: boolean(),
             doc: nil | false | :present,
             deprecated?: boolean(),
+            impl?: boolean(),
             clauses: [non_neg_integer()]
           }
 
@@ -303,7 +305,8 @@ defmodule AssertCommit.Source.Facts do
 
   ## Functions
 
-  # Pending @doc/@deprecated apply to the next function head; @spec applies by name/arity.
+  # Pending @doc/@deprecated/@impl apply to the next function head. A @spec applies by name and
+  # arity; a spec for the full arity of a head with defaults also covers the arities it generates.
   defp functions(items, module, path) do
     specs =
       for {:@, _, [{:spec, _, [spec]}]} <- items,
@@ -312,8 +315,12 @@ defmodule AssertCommit.Source.Facts do
           into: MapSet.new()
 
     {functions, _pending} =
-      Enum.reduce(items, {%{}, %{doc: nil, deprecated?: false}}, fn item, {acc, pending} ->
+      Enum.reduce(items, {%{}, %{doc: nil, deprecated?: false, impl?: false}}, fn item,
+                                                                                  {acc, pending} ->
         case item do
+          {:@, _, [{:impl, _, [_]}]} ->
+            {acc, %{pending | impl?: true}}
+
           {:@, _, [{:doc, _, [false]}]} ->
             {acc, %{pending | doc: false}}
 
@@ -326,6 +333,7 @@ defmodule AssertCommit.Source.Facts do
           {kind, meta, [head | rest]} when kind in [:def, :defp, :defmacro, :defmacrop] ->
             {name, arities} = head_arities(head)
             clause_hash = :erlang.phash2(strip_meta({head, rest}))
+            full_arity = Enum.max(arities)
 
             acc =
               Enum.reduce(arities, acc, fn arity, acc ->
@@ -339,16 +347,19 @@ defmodule AssertCommit.Source.Facts do
                     arity: arity,
                     kind: kind,
                     line: Keyword.get(meta, :line, 0),
-                    spec?: MapSet.member?(specs, {name, arity}),
+                    spec?:
+                      MapSet.member?(specs, {name, arity}) or
+                        MapSet.member?(specs, {name, full_arity}),
                     doc: pending.doc,
                     deprecated?: pending.deprecated?,
+                    impl?: pending.impl?,
                     clauses: [clause_hash]
                   },
                   fn f -> %{f | clauses: f.clauses ++ [clause_hash]} end
                 )
               end)
 
-            {acc, %{doc: nil, deprecated?: false}}
+            {acc, %{doc: nil, deprecated?: false, impl?: false}}
 
           _ ->
             {acc, pending}

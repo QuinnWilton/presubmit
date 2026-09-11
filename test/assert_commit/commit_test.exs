@@ -49,6 +49,16 @@ defmodule AssertCommit.CommitTest do
       assert_scope_matches_paths(commit, ~r/^\[(\w+)\]/, fn scope -> ~r{^lib/#{scope}\.ex$} end)
       assert_raise ExUnit.AssertionError, fn -> refute_added_lines(commit, ~r/IO\.inspect/) end
       assert_raise ExUnit.AssertionError, fn -> assert_specs(commit) end
+
+      exempt =
+        Commit.new(
+          after: %{
+            "lib/y.ex" =>
+              "defmodule Y do\n  @impl true\n  def init(s), do: {:ok, s}\n  defmacro m, do: 1\nend\n"
+          }
+        )
+
+      assert_specs(exempt)
     end
 
     test "binary files get no hunks" do

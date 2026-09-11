@@ -85,6 +85,22 @@ defmodule AssertCommit.Source.FactsTest do
       assert %{spec?: false, doc: nil, deprecated?: false} = by_name.i
     end
 
+    test "a spec for the full arity covers default-generated arities; @impl is recorded" do
+      m =
+        module!("""
+        defmodule A do
+          @spec f(integer(), integer()) :: integer()
+          def f(a, b \\\\ 1), do: a + b
+
+          @impl true
+          def init(state), do: {:ok, state}
+        end
+        """)
+
+      assert Enum.map(m.functions, &{&1.name, &1.arity, &1.spec?, &1.impl?}) ==
+               [{:f, 1, true, false}, {:f, 2, true, false}, {:init, 1, false, true}]
+    end
+
     test "clause hashes ignore line metadata but not code" do
       a = module!("defmodule A do\n  def f, do: 1\nend\n")
       b = module!("defmodule A do\n\n\n  def f, do: 1\nend\n")

@@ -351,12 +351,18 @@ defmodule AssertCommit.Assertions do
     end
   end
 
-  @doc "Asserts every public function the commit adds has a `@spec`."
-  @spec assert_specs(Commit.t()) :: :ok
-  def assert_specs(%Commit{} = commit) do
+  @doc """
+  Asserts every public function the commit adds in files matching `pattern`
+  (default: `lib/`) has a `@spec`.
+
+  Macros and `@impl` callbacks are exempt: callbacks take their contract from
+  the behaviour, and macros are not conventionally spec'd. A spec for a
+  head's full arity covers every arity its default arguments generate.
+  """
+  @spec assert_specs(Commit.t(), pattern()) :: :ok
+  def assert_specs(%Commit{} = commit, pattern \\ ~r{^lib/}) do
     missing =
-      for %Function{} = f <- Query.functions_added(commit),
-          Function.public?(f),
+      for %Function{kind: :def, impl?: false} = f <- Query.functions_added(commit, pattern),
           not f.spec?,
           do: format_function(f)
 
