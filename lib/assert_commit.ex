@@ -39,8 +39,10 @@ defmodule AssertCommit do
         assert_raise ExUnit.AssertionError, fn -> assert_routed(commit) end
       end
 
-  Tests get the `:commit` module tag, so `mix test --exclude commit` skips
-  them in a checkout with no meaningful `HEAD`.
+  Tests get the `:assert_commit` module tag, so `mix test --exclude assert_commit`
+  skips them in a checkout with no meaningful `HEAD`. (The tag is not `:commit`
+  because tags are merged into the context after `setup_all`, and would clobber
+  the `commit` key.)
 
   ## In CI
 
@@ -81,7 +83,7 @@ defmodule AssertCommit do
       import AssertCommit.Assertions.Phoenix
       import AssertCommit.Query
 
-      @moduletag :commit
+      @moduletag :assert_commit
 
       unquote(setup)
     end
