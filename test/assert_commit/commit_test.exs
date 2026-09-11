@@ -47,8 +47,8 @@ defmodule AssertCommit.CommitTest do
       assert modules_added(commit) == [X]
       assert public_api_diff(commit) == %{added: [{X, :f, 0}], removed: []}
       assert_scope_matches_paths(commit, ~r/^\[(\w+)\]/, fn scope -> ~r{^lib/#{scope}\.ex$} end)
-      assert_raise ExUnit.AssertionError, fn -> refute_added_lines(commit, ~r/IO\.inspect/) end
-      assert_raise ExUnit.AssertionError, fn -> assert_specs(commit) end
+      assert_raise AssertCommit.Violation, fn -> refute_added_lines(commit, ~r/IO\.inspect/) end
+      assert_raise AssertCommit.Violation, fn -> assert_specs(commit) end
 
       exempt =
         Commit.new(
@@ -59,6 +59,17 @@ defmodule AssertCommit.CommitTest do
         )
 
       assert_specs(exempt)
+
+      hidden_removed =
+        Commit.new(
+          before: %{
+            "lib/z.ex" =>
+              "defmodule Z do\n  @doc false\n  def internal, do: 1\n  def api, do: 2\nend\n"
+          },
+          after: %{"lib/z.ex" => "defmodule Z do\n  def api, do: 2\nend\n"}
+        )
+
+      assert_removals_deprecated(hidden_removed)
     end
 
     test "binary files get no hunks" do

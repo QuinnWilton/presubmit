@@ -1,145 +1,185 @@
 defmodule AssertCommit.Scenarios.MessageTest do
   @moduledoc """
-  Content-aware message rules, run against `fixtures/message`: a
-  multi-project repository whose `[component]` subjects must agree with
-  the paths touched, whose LLM-assisted commits must be attributed, and
-  whose tooling manifest can only change with the tooling's trailer.
+  `Rules.Message` run against `fixtures/message`: a multi-project repository
+  whose `[component]` subjects must agree with the paths touched, whose
+  LLM-assisted commits must be attributed, and whose tooling manifest can
+  only change with the tooling's trailer.
   """
 
   use ExUnit.Case, async: true
-  use AssertCommit, repo: & &1.repo, rev: &"scenario/#{&1.scenario}"
 
-  setup_all do: %{repo: AssertCommit.Fixtures.repo("message")}
+  import AssertCommit.Query
+  import AssertCommit.RuleHelpers
 
-  @scope ~r/^\[(\w+)\]/
+  alias AssertCommit.{Fixtures, Rules}
+
+  setup_all do: %{repo: Fixtures.repo("message")}
+
   # A `[component]` commit may touch that component's directory; `[workspace]` may touch anything.
-  defp scope_paths("workspace"), do: nil
-  defp scope_paths("deps"), do: [~r{^\.tooling/}, "mix.lock"]
-  defp scope_paths(component), do: ~r{^#{Regex.escape(component)}/}
-
-  describe "assert_scope_matches_paths/3" do
-    @tag scenario: :scoped_correctly
-    test "passes", %{commit: commit} do
-      assert_scope_matches_paths(commit, @scope, &scope_paths/1)
+  defp scope_opts do
+    paths = fn
+      "workspace" -> nil
+      "deps" -> [~r{^\.tooling/}, "mix.lock"]
+      component -> ~r{^#{Regex.escape(component)}/}
     end
 
-    @tag scenario: :scope_mismatch
-    test "fails when the diff is in another component", %{commit: commit} do
-      [scope] = Regex.run(@scope, subject(commit), capture: :all_but_first)
+    [scope: {~r/^\[(\w+)\]/, paths}]
+  end
+
+  # A Co-Authored-By naming the model is the trigger; the session link is the required companion.
+  defp llm_opts do
+    llm? = fn commit ->
+      Enum.any?(trailer(commit, "Co-Authored-By"), &(&1 =~ ~r/anthropic\.com/))
+    end
+
+    [trailers: [{llm?, "Claude-Session", ~r{^https://claude\.ai/code/session_}}]]
+  end
+
+  defp tooling_opts, do: [trailers: [{&touches?(&1, ~r{^\.tooling/}), "Tooling", nil}]]
+
+  describe ":scope" do
+    test "passes", %{repo: repo} do
+      assert_pass run_rule(Rules.Message, :scope, scenario(repo, :scoped_correctly), scope_opts())
+    end
+
+    test "fails when the diff is in another component", %{repo: repo} do
+      commit = scenario(repo, :scope_mismatch)
+      [scope] = Regex.run(~r/^\[(\w+)\]/, subject(commit), capture: :all_but_first)
       [path] = touched(commit)
-
-      error =
-        assert_raise ExUnit.AssertionError, fn ->
-          assert_scope_matches_paths(commit, @scope, &scope_paths/1)
-        end
-
-      assert error.message =~ "scopes this commit to #{inspect(scope)}"
-      assert error.message =~ "but it also touches:\n  #{path}"
+      assert_fail run_rule(Rules.Message, :scope, commit, scope_opts()), message
+      assert message =~ "scopes this commit to #{inspect(scope)}"
+      assert message =~ "but it also touches:\n  #{path}"
     end
 
-    @tag scenario: :no_scope
-    test "fails when there is no scope at all", %{commit: commit} do
-      assert_raise ExUnit.AssertionError, ~r/Expected the subject to declare a scope/, fn ->
-        assert_scope_matches_paths(commit, @scope, &scope_paths/1)
-      end
+    test "fails when there is no scope at all", %{repo: repo} do
+      assert_fail run_rule(Rules.Message, :scope, scenario(repo, :no_scope), scope_opts()),
+                  message
+
+      assert message =~ "Expected the subject to declare a scope"
     end
 
-    @tag scenario: :multi_project
-    test "catches a commit spanning two components", %{commit: commit} do
+    test "catches a commit spanning two components", %{repo: repo} do
+      commit = scenario(repo, :multi_project)
       assert length(touched(commit)) == 2
+      assert_fail run_rule(Rules.Message, :scope, commit, scope_opts()), _
+    end
 
-      assert_raise ExUnit.AssertionError, fn ->
-        assert_scope_matches_paths(commit, @scope, &scope_paths/1)
-      end
+    test "is skipped when not configured", %{repo: repo} do
+      assert {:skip, "no scope: option configured"} =
+               run_rule(Rules.Message, :scope, scenario(repo, :no_scope))
     end
   end
 
-  describe "LLM-assisted commits are attributed" do
-    # A Co-Authored-By naming the model is the trigger; the session link is the required companion.
-    defp assert_llm_attribution(commit) do
-      if Enum.any?(trailer(commit, "Co-Authored-By"), &(&1 =~ ~r/anthropic\.com/)) do
-        assert_trailer(commit, "Claude-Session", ~r{^https://claude\.ai/code/session_})
-      end
-    end
-
-    @tag scenario: :llm_commit_attributed
-    test "passes with both trailers", %{commit: commit} do
+  describe ":trailers for LLM-assisted commits" do
+    test "passes with both trailers", %{repo: repo} do
+      commit = scenario(repo, :llm_commit_attributed)
       assert length(trailers(commit)) == 2
-      assert_llm_attribution(commit)
+      assert_pass run_rule(Rules.Message, :trailers, commit, llm_opts())
     end
 
-    @tag scenario: :llm_commit_missing_session
-    test "fails without the session link", %{commit: commit} do
-      error = assert_raise ExUnit.AssertionError, fn -> assert_llm_attribution(commit) end
+    test "fails without the session link", %{repo: repo} do
+      assert_fail run_rule(
+                    Rules.Message,
+                    :trailers,
+                    scenario(repo, :llm_commit_missing_session),
+                    llm_opts()
+                  ),
+                  message
 
-      assert error.message =~
+      assert message =~
                "Expected a `Claude-Session:` trailer, but the message has only: Co-Authored-By."
     end
 
-    @tag scenario: :trailers_not_last
-    test "trailers followed by prose are not trailers, so the rule cannot see them", %{
-      commit: commit
-    } do
+    test "trailers followed by prose are not trailers, so the trigger never fires", %{repo: repo} do
+      commit = scenario(repo, :trailers_not_last)
       assert trailers(commit) == []
-      assert_llm_attribution(commit)
+      assert_pass run_rule(Rules.Message, :trailers, commit, llm_opts())
 
+      # The generic verb explains why the block was not recognised.
       error =
-        assert_raise ExUnit.AssertionError, fn -> assert_trailer(commit, "Co-Authored-By") end
+        assert_raise AssertCommit.Violation, fn ->
+          AssertCommit.Assertions.assert_trailer(commit, "Co-Authored-By")
+        end
 
       assert error.message =~
                "Trailers are `Key: value` lines in the final paragraph of the message."
     end
 
-    @tag scenario: :scoped_correctly
-    test "human commits are not required to carry the trailer", %{commit: commit} do
-      assert trailers(commit) == []
-      assert_llm_attribution(commit)
+    test "human commits are not required to carry the trailer", %{repo: repo} do
+      assert_pass run_rule(
+                    Rules.Message,
+                    :trailers,
+                    scenario(repo, :scoped_correctly),
+                    llm_opts()
+                  )
+    end
+
+    test "is skipped when not configured", %{repo: repo} do
+      assert {:skip, "no trailers: option configured"} =
+               run_rule(Rules.Message, :trailers, scenario(repo, :scoped_correctly))
     end
   end
 
-  describe "the tooling manifest is only changed by tooling" do
-    defp assert_manifest_changed_by_tooling(commit) do
-      if touches?(commit, ~r{^\.tooling/}), do: assert_trailer(commit, "Tooling")
+  describe ":trailers for a tooling-owned file" do
+    test "passes when the tooling trailer is present", %{repo: repo} do
+      assert_pass run_rule(
+                    Rules.Message,
+                    :trailers,
+                    scenario(repo, :manifest_via_tooling),
+                    tooling_opts()
+                  )
     end
 
-    @tag scenario: :manifest_via_tooling
-    test "passes when the tooling trailer is present", %{commit: commit} do
-      assert_manifest_changed_by_tooling(commit)
+    test "fails on a hand edit", %{repo: repo} do
+      assert_fail run_rule(
+                    Rules.Message,
+                    :trailers,
+                    scenario(repo, :manifest_hand_edit),
+                    tooling_opts()
+                  ),
+                  message
+
+      assert message =~ "Expected a `Tooling:` trailer"
     end
 
-    @tag scenario: :manifest_hand_edit
-    test "fails on a hand edit", %{commit: commit} do
-      error =
-        assert_raise ExUnit.AssertionError, fn -> assert_manifest_changed_by_tooling(commit) end
-
-      assert error.message =~ "Expected a `Tooling:` trailer"
-    end
-
-    @tag scenario: :scoped_correctly
-    test "is vacuous when the manifest is untouched", %{commit: commit} do
-      assert_manifest_changed_by_tooling(commit)
+    test "is vacuous when the manifest is untouched", %{repo: repo} do
+      assert_pass run_rule(
+                    Rules.Message,
+                    :trailers,
+                    scenario(repo, :scoped_correctly),
+                    tooling_opts()
+                  )
     end
   end
 
   describe "subject hygiene" do
-    @tag scenario: :fixup
-    test "fixup!/squash! commits are refused", %{commit: commit} do
-      assert_raise ExUnit.AssertionError, ~r/not to match/, fn ->
-        refute_subject(commit, ~r/^(fixup|squash|amend)!/)
-      end
+    test ":no_fixup refuses fixup!/squash! commits", %{repo: repo} do
+      assert_fail run_rule(Rules.Message, :no_fixup, scenario(repo, :fixup)), message
+      assert message =~ "not to match"
+      assert_pass run_rule(Rules.Message, :no_fixup, scenario(repo, :scoped_correctly))
     end
 
-    @tag scenario: :long_subject
-    test "subjects fit in 72 columns", %{commit: commit} do
-      assert_raise ExUnit.AssertionError, ~r/Expected the subject to match/, fn ->
-        assert_subject(commit, ~r/^.{1,72}$/)
-      end
+    test ":subject_length defaults to 72 columns and is configurable", %{repo: repo} do
+      assert_fail run_rule(Rules.Message, :subject_length, scenario(repo, :long_subject)), _
+
+      assert_pass run_rule(Rules.Message, :subject_length, scenario(repo, :long_subject),
+                    max_subject_length: 120
+                  )
+
+      assert_pass run_rule(Rules.Message, :subject_length, scenario(repo, :scoped_correctly))
     end
 
-    @tag scenario: :scoped_correctly
-    test "a well-formed subject passes both", %{commit: commit} do
-      refute_subject(commit, ~r/^(fixup|squash|amend)!/)
-      assert_subject(commit, ~r/^.{1,72}$/)
+    test ":subject checks a configured pattern", %{repo: repo} do
+      assert_pass run_rule(Rules.Message, :subject, scenario(repo, :scoped_correctly),
+                    subject: ~r/^\[\w+\] /
+                  )
+
+      assert_fail run_rule(Rules.Message, :subject, scenario(repo, :no_scope),
+                    subject: ~r/^\[\w+\] /
+                  ),
+                  _
+
+      assert {:skip, _} = run_rule(Rules.Message, :subject, scenario(repo, :no_scope))
     end
   end
 end

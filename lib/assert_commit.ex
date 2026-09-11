@@ -1,108 +1,53 @@
 defmodule AssertCommit do
   @moduledoc """
-  ExUnit assertions over the shape and contents of git commits.
+  Assertions over the shape and contents of git commits, run as a linter.
 
-  `use AssertCommit` loads the change set once per test module and injects
-  it into the test context as `commit`, alongside the assertion verbs from
-  `AssertCommit.Assertions` and the query helpers from `AssertCommit.Query`.
+  `mix assert_commit` loads a change set — a commit, the staged index, or the
+  working tree — parses the Elixir it changed into a structural description,
+  and runs the rules in `.assert_commit.exs` against it. See
+  `Mix.Tasks.AssertCommit` for the command line and `AssertCommit.RuleSet`
+  for writing rules.
 
-      defmodule MyApp.CommitTest do
-        use ExUnit.Case, async: true
-        use AssertCommit
+  Programmatic use:
 
-        test "new migrations sort last", %{commit: commit} do
-          for path <- added(commit, ~r{^priv/repo/migrations/}) do
-            assert_last_by_name(commit, path, among: ~r{^priv/repo/migrations/})
-          end
-        end
+      commit = AssertCommit.load(source: :auto)
+      report = AssertCommit.Runner.run(commit, AssertCommit.Config.load!().rules)
+  """
 
-        test "new controllers are routed", %{commit: commit} do
-          for mod <- modules_added(commit, ~r/_controller\\.ex$/) do
-            assert_references(commit, "lib/my_app_web/router.ex", mod)
-          end
-        end
-      end
+  alias AssertCommit.{Commit, Git}
+
+  @type source :: :auto | :head | :staged | :worktree | {:rev, String.t()}
+
+  @doc """
+  Loads a change set.
 
   ## Options
 
   - `:repo` — repository path (default: the current directory).
-  - `:rev` — revision to load (default: `"HEAD"`).
-  - `:source` — `:rev` (default) or `:staged` to assert on the index instead
-    of a commit.
-
-  Any option may be a function of the test context, evaluated per test:
-
-      use AssertCommit, repo: & &1.repo, rev: &"scenario/\#{&1.scenario}"
-
-      @tag scenario: :unrouted_controller
-      test "unrouted controllers fail", %{commit: commit} do
-        assert_raise ExUnit.AssertionError, fn -> assert_routed(commit) end
-      end
-
-  Tests get the `:assert_commit` module tag, so `mix test --exclude assert_commit`
-  skips them in a checkout with no meaningful `HEAD`. (The tag is not `:commit`
-  because tags are merged into the context after `setup_all`, and would clobber
-  the `commit` key.)
-
-  ## In CI
-
-  A depth-1 checkout has no parent for `HEAD`. With `actions/checkout`, set
-  `fetch-depth: 2`. On `pull_request` events `HEAD` is a synthetic merge
-  commit; assert on `github.event.pull_request.head.sha` or on each commit
-  in `base.sha..head.sha` instead.
+  - `:source` — `:head` (default), `{:rev, rev}`, `:staged`, `:worktree`, or
+    `:auto`, which is `:worktree` when anything on disk differs from `HEAD`
+    and `:head` otherwise.
   """
-
-  alias AssertCommit.Commit
-
-  @doc false
-  defmacro __using__(opts) do
-    dynamic? = Enum.any?(opts, fn {_k, v} -> match?({:fn, _, _}, v) or match?({:&, _, _}, v) end)
-
-    setup =
-      if dynamic? do
-        quote do
-          setup context do
-            %{commit: AssertCommit.commit(unquote(opts), context)}
-          end
-        end
-      else
-        quote do
-          setup_all do
-            %{commit: AssertCommit.commit(unquote(opts))}
-          end
-        end
-      end
-
-    quote do
-      import AssertCommit.Assertions
-      import AssertCommit.Assertions.Changelog
-      import AssertCommit.Assertions.Ecto
-      import AssertCommit.Assertions.ExUnit
-      import AssertCommit.Assertions.Mix
-      import AssertCommit.Assertions.OTP
-      import AssertCommit.Assertions.Phoenix
-      import AssertCommit.Query
-
-      @moduletag :assert_commit
-
-      unquote(setup)
+  @spec load(keyword()) :: Commit.t()
+  def load(opts \\ []) do
+    case resolve_source(opts) do
+      :head -> Commit.head(opts)
+      {:rev, rev} -> Commit.rev(rev, opts)
+      :staged -> Commit.staged(opts)
+      :worktree -> Commit.worktree(opts)
     end
   end
 
-  @doc """
-  Loads a change set according to `opts` (see `use AssertCommit`).
+  @doc "The concrete source `:auto` would pick for `opts[:repo]` right now."
+  @spec resolve_source(keyword()) :: :head | :staged | :worktree | {:rev, String.t()}
+  def resolve_source(opts \\ []) do
+    case Keyword.get(opts, :source, :head) do
+      :auto ->
+        repo = opts |> Keyword.get(:repo, File.cwd!()) |> Path.expand()
+        if Git.dirty?(repo), do: :worktree, else: :head
 
-  Option values may be one-argument functions of the test `context`, in
-  which case they are resolved per test; `use AssertCommit` then loads the
-  commit in `setup` rather than `setup_all`.
-  """
-  @spec commit(keyword(), map()) :: Commit.t()
-  def commit(opts \\ [], context \\ %{}) do
-    opts = Enum.map(opts, fn {k, v} -> {k, if(is_function(v, 1), do: v.(context), else: v)} end)
-
-    case Keyword.get(opts, :source, :rev) do
-      :staged -> Commit.staged(opts)
-      :rev -> Commit.rev(Keyword.get(opts, :rev, "HEAD"), opts)
+      source ->
+        source
     end
   end
 end

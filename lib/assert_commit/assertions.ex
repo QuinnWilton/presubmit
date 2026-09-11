@@ -389,14 +389,15 @@ defmodule AssertCommit.Assertions do
   end
 
   @doc """
-  Asserts every public function the commit removes was marked `@deprecated`
-  before the commit, so consumers had a release to migrate.
+  Asserts every API function the commit removes was marked `@deprecated`
+  before the commit, so consumers had a release to migrate. Functions marked
+  `@doc false` are not API and may be removed freely.
   """
   @spec assert_removals_deprecated(Commit.t()) :: :ok
   def assert_removals_deprecated(%Commit{} = commit) do
     undeprecated =
       for %Function{} = f <- Query.functions_removed(commit),
-          Function.public?(f),
+          Function.api?(f),
           not f.deprecated?,
           do: format_function(f)
 

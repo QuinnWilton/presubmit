@@ -28,7 +28,7 @@ defmodule AssertCommit.Scenarios.SourcesTest do
       assert commit.sha == nil
       assert added(commit) == ["lib/shop/debug.ex"]
 
-      assert_raise ExUnit.AssertionError,
+      assert_raise AssertCommit.Violation,
                    ~r/lib\/shop\/debug\.ex:1: IO\.inspect\(:staged\)/,
                    fn -> refute_added_lines(commit, ~r/IO\.inspect\(/) end
     end
@@ -97,7 +97,7 @@ defmodule AssertCommit.Scenarios.SourcesTest do
             refute_added_lines(commit, ~r/IO\.inspect/)
             {subject(commit), :ok}
           rescue
-            e in ExUnit.AssertionError -> {subject(commit), e.message}
+            e in AssertCommit.Violation -> {subject(commit), e.message}
           end
         end
 

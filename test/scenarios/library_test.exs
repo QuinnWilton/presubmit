@@ -1,160 +1,201 @@
 defmodule AssertCommit.Scenarios.LibraryTest do
   @moduledoc """
-  Process rules for a published hex package, run against `fixtures/library`.
+  The Elixir, Changelog, Mix, and ExUnit rule sets run against
+  `fixtures/library`, a published hex package.
   """
 
   use ExUnit.Case, async: true
-  use AssertCommit, repo: & &1.repo, rev: &"scenario/#{&1.scenario}"
 
-  setup_all do: %{repo: AssertCommit.Fixtures.repo("library")}
+  import AssertCommit.Query
+  import AssertCommit.RuleHelpers
 
-  describe "assert_api_changes_logged/1" do
-    @tag scenario: :api_added_with_changelog
-    test "passes when the unreleased section grew", %{commit: commit} do
+  alias AssertCommit.Assertions.Mix, as: MixAssertions
+  alias AssertCommit.{Fixtures, Rules}
+
+  setup_all do: %{repo: Fixtures.repo("library")}
+
+  describe "Rules.Changelog :api_changes_logged" do
+    test "passes when the unreleased section grew", %{repo: repo} do
+      commit = scenario(repo, :api_added_with_changelog)
       assert %{added: [_], removed: []} = public_api_diff(commit)
-      assert_api_changes_logged(commit)
+      assert_pass(run_rule(Rules.Changelog, :api_changes_logged, commit))
     end
 
-    @tag scenario: :api_added_without_changelog
-    test "fails naming the API change", %{commit: commit} do
+    test "fails naming the API change", %{repo: repo} do
+      commit = scenario(repo, :api_added_without_changelog)
       [{m, f, a}] = public_api_diff(commit).added
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_api_changes_logged(commit) end
-      assert error.message =~ "the unreleased section of CHANGELOG.md did not"
-      assert error.message =~ "#{inspect(m)}.#{f}/#{a} added"
+      assert_fail(run_rule(Rules.Changelog, :api_changes_logged, commit), message)
+      assert message =~ "the unreleased section of CHANGELOG.md did not"
+      assert message =~ "#{inspect(m)}.#{f}/#{a} added"
     end
 
-    @tag scenario: :deps_changed_with_lock
-    test "is vacuous when the public API is unchanged", %{commit: commit} do
+    test "is vacuous when the public API is unchanged", %{repo: repo} do
+      commit = scenario(repo, :deps_changed_with_lock)
       refute public_api_changed?(commit)
-      assert_api_changes_logged(commit)
+      assert_pass(run_rule(Rules.Changelog, :api_changes_logged, commit))
+    end
+
+    test "honours a custom path", %{repo: repo} do
+      assert_fail(
+        run_rule(Rules.Changelog, :api_changes_logged, scenario(repo, :api_added_with_changelog),
+          path: "HISTORY.md"
+        ),
+        message
+      )
+
+      assert message =~ "HISTORY.md has no unreleased section"
     end
   end
 
-  describe "assert_specs/1" do
-    @tag scenario: :api_added_with_changelog
-    test("passes", %{commit: commit}, do: assert_specs(commit))
+  describe "Rules.Elixir :specs" do
+    test "passes", %{repo: repo} do
+      assert_pass(run_rule(Rules.Elixir, :specs, scenario(repo, :api_added_with_changelog)))
+    end
 
-    @tag scenario: :api_added_without_spec
-    test "fails naming the function", %{commit: commit} do
+    test "fails naming the function", %{repo: repo} do
+      commit = scenario(repo, :api_added_without_spec)
       [{m, f, a}] = public_api_diff(commit).added
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_specs(commit) end
-      assert error.message =~ "have no @spec:\n  #{inspect(m)}.#{f}/#{a}"
+      assert_fail(run_rule(Rules.Elixir, :specs, commit), message)
+      assert message =~ "have no @spec:\n  #{inspect(m)}.#{f}/#{a}"
     end
   end
 
   describe "removing a public function" do
-    @tag scenario: :function_removed_with_breaking_trailer
-    test "assert_trailer/3 passes with a BREAKING CHANGE naming the function", %{commit: commit} do
-      [{_m, f, a}] = public_api_diff(commit).removed
-      assert_trailer(commit, "BREAKING CHANGE", ~r/#{f}\/#{a}/)
-    end
-
-    @tag scenario: :function_removed_without_breaking_trailer
-    test "assert_trailer/2 fails without the trailer", %{commit: commit} do
-      assert public_api_diff(commit).removed != []
-
-      error =
-        assert_raise ExUnit.AssertionError, fn -> assert_trailer(commit, "BREAKING CHANGE") end
-
-      assert error.message =~
-               "Expected a `BREAKING CHANGE:` trailer, but the message has no trailers."
-    end
-
-    @tag scenario: :function_removed_with_breaking_trailer
-    test "assert_removals_deprecated/1 fails because it was never deprecated", %{commit: commit} do
+    test "Rules.Elixir :removals_deprecated fails because it was never deprecated", %{repo: repo} do
+      commit = scenario(repo, :function_removed_with_breaking_trailer)
       [{m, f, a}] = public_api_diff(commit).removed
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_removals_deprecated(commit) end
-      assert error.message =~ "removed without a prior @deprecated:\n  #{inspect(m)}.#{f}/#{a}"
+      assert_fail(run_rule(Rules.Elixir, :removals_deprecated, commit), message)
+      assert message =~ "removed without a prior @deprecated:\n  #{inspect(m)}.#{f}/#{a}"
     end
 
-    @tag scenario: :api_added_with_changelog
-    test "assert_removals_deprecated/1 is vacuous when nothing was removed", %{commit: commit} do
-      assert_removals_deprecated(commit)
+    test "Rules.Elixir :removals_deprecated is vacuous when nothing was removed", %{repo: repo} do
+      assert_pass(
+        run_rule(Rules.Elixir, :removals_deprecated, scenario(repo, :api_added_with_changelog))
+      )
+    end
+
+    test "a Rules.Message trailer requirement can demand BREAKING CHANGE on removals", %{
+      repo: repo
+    } do
+      trailers = [{&(public_api_diff(&1).removed != []), "BREAKING CHANGE", nil}]
+
+      assert_pass(
+        run_rule(
+          Rules.Message,
+          :trailers,
+          scenario(repo, :function_removed_with_breaking_trailer),
+          trailers: trailers
+        )
+      )
+
+      assert_fail(
+        run_rule(
+          Rules.Message,
+          :trailers,
+          scenario(repo, :function_removed_without_breaking_trailer),
+          trailers: trailers
+        ),
+        message
+      )
+
+      assert message =~ "Expected a `BREAKING CHANGE:` trailer, but the message has no trailers."
+
+      assert_pass(
+        run_rule(Rules.Message, :trailers, scenario(repo, :api_added_with_changelog),
+          trailers: trailers
+        )
+      )
     end
   end
 
   describe "new modules" do
-    @tag scenario: :new_module_with_test
-    test "assert_tested/1 and assert_moduledoc/1 pass", %{commit: commit} do
-      assert_tested(commit)
-      assert_moduledoc(commit)
+    test "Rules.ExUnit :tested and Rules.Elixir :moduledoc pass", %{repo: repo} do
+      commit = scenario(repo, :new_module_with_test)
+      assert_pass(run_rule(Rules.ExUnit, :tested, commit))
+      assert_pass(run_rule(Rules.Elixir, :moduledoc, commit))
     end
 
-    @tag scenario: :new_module_without_test
-    test "assert_tested/1 fails", %{commit: commit} do
+    test "Rules.ExUnit :tested fails", %{repo: repo} do
+      commit = scenario(repo, :new_module_without_test)
       [added] = modules_added(commit, ~r{^lib/})
-      error = assert_raise ExUnit.AssertionError, fn -> assert_tested(commit) end
-      assert error.message =~ "have no test module"
-      assert error.message =~ inspect(added)
+      assert_fail(run_rule(Rules.ExUnit, :tested, commit), message)
+      assert message =~ "have no test module"
+      assert message =~ inspect(added)
     end
 
-    @tag scenario: :new_module_without_moduledoc
-    test "assert_moduledoc/1 fails", %{commit: commit} do
+    test "Rules.Elixir :moduledoc fails", %{repo: repo} do
+      commit = scenario(repo, :new_module_without_moduledoc)
       [added] = modules_added(commit, ~r{^lib/})
-      error = assert_raise ExUnit.AssertionError, fn -> assert_moduledoc(commit) end
-      assert error.message =~ "have no @moduledoc:\n  #{inspect(added)}"
+      assert_fail(run_rule(Rules.Elixir, :moduledoc, commit), message)
+      assert message =~ "have no @moduledoc:\n  #{inspect(added)}"
     end
   end
 
-  describe "assert_lock_in_sync/1" do
-    @tag scenario: :deps_changed_with_lock
-    test "passes when the lockfile gained the dependency", %{commit: commit} do
-      assert [%{name: name}] = deps_added(commit)
+  describe "Rules.Mix :lock_in_sync" do
+    test "passes when the lockfile gained the dependency", %{repo: repo} do
+      commit = scenario(repo, :deps_changed_with_lock)
+      assert [%{name: name}] = MixAssertions.deps_added(commit)
       assert name in AssertCommit.MixFile.locked(commit.after)
-      assert_lock_in_sync(commit)
+      assert_pass(run_rule(Rules.Mix, :lock_in_sync, commit))
     end
 
-    @tag scenario: :deps_changed_without_lock
-    test "fails naming the missing lock entry", %{commit: commit} do
-      [%{name: name}] = deps_added(commit)
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_lock_in_sync(commit) end
-      assert error.message =~ "#{inspect(name)} was added to mix.exs but is not in mix.lock"
-      assert error.message =~ "Run `mix deps.get`"
+    test "fails naming the missing lock entry", %{repo: repo} do
+      commit = scenario(repo, :deps_changed_without_lock)
+      [%{name: name}] = MixAssertions.deps_added(commit)
+      assert_fail(run_rule(Rules.Mix, :lock_in_sync, commit), message)
+      assert message =~ "#{inspect(name)} was added to mix.exs but is not in mix.lock"
+      assert message =~ "Run `mix deps.get`"
     end
 
-    @tag scenario: :api_added_with_changelog
-    test "is vacuous when deps are unchanged", %{commit: commit} do
-      assert deps_added(commit) == []
-      assert_lock_in_sync(commit)
+    test "is vacuous when deps are unchanged", %{repo: repo} do
+      commit = scenario(repo, :api_added_with_changelog)
+      assert MixAssertions.deps_added(commit) == []
+      assert_pass(run_rule(Rules.Mix, :lock_in_sync, commit))
     end
   end
 
-  describe "release commits" do
-    # A version bump may touch only release metadata.
-    defp assert_release_only(commit) do
-      if version_bump(commit), do: refute_touched(commit, ~r{^(lib|test)/})
-    end
-
-    @tag scenario: :release_commit
-    test "assert_release_logged/1 passes for a clean release", %{commit: commit} do
-      assert {_, new} = version_bump(commit)
+  describe "Rules.Changelog :release_logged" do
+    test "passes for a clean release", %{repo: repo} do
+      commit = scenario(repo, :release_commit)
+      assert {_, new} = MixAssertions.version_bump(commit)
       assert AssertCommit.Changelog.section_for(commit.after, new)
-      assert_release_logged(commit)
-      assert_release_only(commit)
+      assert_pass(run_rule(Rules.Changelog, :release_logged, commit))
     end
 
-    @tag scenario: :release_commit_with_code
-    test "code riding along fails the release-only rule", %{commit: commit} do
-      error = assert_raise ExUnit.AssertionError, fn -> assert_release_only(commit) end
-      assert error.message =~ "but it touches:\n  lib/"
+    test "fails without a section for the version", %{repo: repo} do
+      commit = scenario(repo, :version_bump_without_changelog_heading)
+      {_, new} = MixAssertions.version_bump(commit)
+      assert_fail(run_rule(Rules.Changelog, :release_logged, commit), message)
+      assert message =~ "has no `## #{new}` section"
     end
 
-    @tag scenario: :version_bump_without_changelog_heading
-    test "assert_release_logged/1 fails without a section for the version", %{commit: commit} do
-      {_, new} = version_bump(commit)
-      error = assert_raise ExUnit.AssertionError, fn -> assert_release_logged(commit) end
-      assert error.message =~ "has no `## #{new}` section"
+    test "is vacuous for non-release commits", %{repo: repo} do
+      commit = scenario(repo, :api_added_with_changelog)
+      assert MixAssertions.version_bump(commit) == nil
+      assert_pass(run_rule(Rules.Changelog, :release_logged, commit))
     end
 
-    @tag scenario: :api_added_with_changelog
-    test "both are vacuous for non-release commits", %{commit: commit} do
-      assert version_bump(commit) == nil
-      assert_release_logged(commit)
-      assert_release_only(commit)
+    # A project rule set composed from the generic verbs: releases touch only release metadata.
+    defmodule ReleaseRules do
+      use AssertCommit.RuleSet
+
+      import AssertCommit.Assertions
+      import AssertCommit.Assertions.Mix
+
+      rule :release_only, "a version bump touches only release metadata", fn commit ->
+        if version_bump(commit), do: refute_touched(commit, ~r{^(lib|test)/}), else: :ok
+      end
+    end
+
+    test "a custom rule set catches code riding along with a release", %{repo: repo} do
+      assert_pass(run_rule(ReleaseRules, :release_only, scenario(repo, :release_commit)))
+
+      assert_fail(
+        run_rule(ReleaseRules, :release_only, scenario(repo, :release_commit_with_code)),
+        message
+      )
+
+      assert message =~ "but it touches:\n  lib/"
     end
   end
 end

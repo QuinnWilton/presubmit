@@ -4,13 +4,16 @@
 
 ### Added
 
-- `use AssertCommit` loads `HEAD`, any revision, or the staged index into the test context as `commit`; options may be functions of the test context for per-test revisions.
-- Structural source layer: `AssertCommit.Source.Facts` (per-file modules, functions, attributes, struct fields, alias-resolved references), `AssertCommit.Source.Diff` (modules and functions added/removed/renamed/changed, `behaviour_changed?/1`), `AssertCommit.Source.Index` (tree-wide discovery).
+- `mix assert_commit`: runs the rule sets in `.assert_commit.exs` (or every built-in set by default) against a change set and reports each rule as passed, failed, or skipped. Sources: `--head`, `--rev`, `--staged`, `--worktree`, `--range A..B`; the default is the working tree when anything differs from `HEAD`, else `HEAD`, and the first line of output always names what was examined. `--format json`, `--list`, and a warning when a dirty working tree is examined under `CI`.
+- Rule sets: `AssertCommit.RuleSet` (`use` + `rule/3`) and built-in `Rules.Elixir`, `Rules.Phoenix`, `Rules.Ecto`, `Rules.OTP`, `Rules.ExUnit`, `Rules.Mix`, `Rules.Changelog`, `Rules.Message`, `Rules.Hygiene`, `Rules.Shape`, with `only:`/`except:` and per-set options.
+- Change sources: `Commit.worktree/1` (via a temporary index, never touching the real one) and `AssertCommit.load/1` with `source: :auto`.
+- Structural source layer: `AssertCommit.Source.Facts` (per-file modules, functions, attributes, struct fields, alias-resolved references), `AssertCommit.Source.Diff` (modules and functions added/removed/renamed/changed, `behaviour_changed?/1`), `AssertCommit.Source.Index`.
 - Library-aware adapters implementing `AssertCommit.Adapter`: `PhoenixRouter`, `PhoenixHandler`, `EctoSchema`, `EctoMigration`, `OtpProcess`, `ExUnitCase`; plus `AssertCommit.MixFile` and `AssertCommit.Changelog` parsers.
-- Library-aware assertions: `assert_routed`, `assert_migrations_ordered`, `assert_migrations_immutable`, `assert_schema_changes_migrated`, `assert_indexes_concurrent`, `assert_migrations_reversible`, `assert_supervised`, `assert_tested`, `assert_behaviour_changes_tested`, `assert_lock_in_sync`, `assert_release_logged`, `assert_api_changes_logged`.
-- Elixir-source assertions on the structural diff: `assert_specs`, `assert_moduledoc`, `assert_removals_deprecated`, `assert_pure_move`, `assert_references`.
-- File, line, message, and shape assertions: `assert_added`/`refute_added` and friends, `assert_immutable`, `assert_coupled`, `assert_counterpart`, `assert_last_by_name`, `refute_added_lines`, `assert_subject`, `assert_trailer`, `assert_scope_matches_paths`, `assert_max_files`, `assert_max_additions`.
-- `AssertCommit.Commit.worktree/1`: the working directory as a change set against `HEAD`, built through a temporary index so the real index is never touched; `AssertCommit.Git.dirty?/1`.
-- `AssertCommit.Commit.new/1` for synthetic change sets in tests.
-- Explicit errors for merge commits and shallow clones, with the CI fix in the message.
-- Fixture repositories as base trees plus `format-patch` scenarios under `fixtures/`, loaded by `AssertCommit.Fixtures`.
+- Assertion verbs raising `AssertCommit.Violation`: library-aware (`assert_routed`, `assert_migrations_ordered`, `assert_schema_changes_migrated`, `assert_supervised`, `assert_tested`, `assert_lock_in_sync`, `assert_api_changes_logged`, …), Elixir-source (`assert_specs`, `assert_moduledoc`, `assert_removals_deprecated`, `assert_pure_move`, `assert_references`), file, line, message, and shape.
+- `AssertCommit.Commit.new/1` for synthetic change sets; explicit errors for merge commits and shallow clones.
+- `Source.Facts.Function.api?/1`: `@doc false` functions are not API, so `public_api_diff/1`, `assert_api_changes_logged`, and `assert_removals_deprecated` ignore them.
+- Fixture repositories as base trees plus `format-patch` scenarios under `fixtures/`.
+
+### Removed
+
+- ExUnit hosting (`use AssertCommit`): rules run through `mix assert_commit` instead, so the source is chosen per invocation and announced in the output.

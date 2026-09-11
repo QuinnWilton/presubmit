@@ -172,17 +172,17 @@ defmodule AssertCommit.Source.Diff do
   defp struct_fields(%Module{struct: nil}), do: []
   defp struct_fields(%Module{struct: %{fields: fields}}), do: fields
 
-  @doc "Public functions added, as `{module, name, arity}`."
+  @doc "API functions (public, not `@doc false`) added, as `{module, name, arity}`."
   @spec public_added(t()) :: [{module(), atom(), arity()}]
   def public_added(%__MODULE__{functions: %{added: added}}),
-    do: added |> Enum.filter(&Function.public?/1) |> Enum.map(&Function.key/1)
+    do: added |> Enum.filter(&Function.api?/1) |> Enum.map(&Function.key/1)
 
-  @doc "Public functions removed, as `{module, name, arity}`."
+  @doc "API functions (public, not `@doc false`) removed, as `{module, name, arity}`."
   @spec public_removed(t()) :: [{module(), atom(), arity()}]
   def public_removed(%__MODULE__{functions: %{removed: removed}}),
-    do: removed |> Enum.filter(&Function.public?/1) |> Enum.map(&Function.key/1)
+    do: removed |> Enum.filter(&Function.api?/1) |> Enum.map(&Function.key/1)
 
-  @doc "Whether any public function was added or removed."
+  @doc "Whether any API function was added or removed."
   @spec public_api_changed?(t()) :: boolean()
   def public_api_changed?(diff), do: public_added(diff) != [] or public_removed(diff) != []
 

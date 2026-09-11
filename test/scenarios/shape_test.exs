@@ -1,116 +1,110 @@
 defmodule AssertCommit.Scenarios.ShapeTest do
   @moduledoc """
-  The commit requirements — atomic, bisectable, separate concerns — as
-  assertions on commit shape, run against `fixtures/shape`.
+  The commit requirements — atomic, bisectable, separate concerns — run
+  against `fixtures/shape`.
   """
 
   use ExUnit.Case, async: true
-  use AssertCommit, repo: & &1.repo, rev: &"scenario/#{&1.scenario}"
 
-  setup_all do: %{repo: AssertCommit.Fixtures.repo("shape")}
+  import AssertCommit.Query
+  import AssertCommit.RuleHelpers
 
-  describe "assert_pure_move/1" do
-    @tag scenario: :pure_move
-    test "a move that only renames modules passes", %{commit: commit} do
+  alias AssertCommit.{Fixtures, Rules}
+
+  setup_all do: %{repo: Fixtures.repo("shape")}
+
+  describe "Rules.Elixir :pure_move" do
+    test "a move that only renames modules passes", %{repo: repo} do
+      commit = scenario(repo, :pure_move)
       assert length(renamed(commit)) == 2
       assert length(modules_renamed(commit)) == 2
       refute behaviour_changed?(commit)
-      assert_pure_move(commit)
+      assert_pass(run_rule(Rules.Elixir, :pure_move, commit))
     end
 
-    @tag scenario: :move_with_edits
-    test "a move with a behaviour change fails naming the function", %{commit: commit} do
+    test "a move with a behaviour change fails naming the function", %{repo: repo} do
+      commit = scenario(repo, :move_with_edits)
       [{_, f}] = elixir_diff(commit).functions.body_changed
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_pure_move(commit) end
-      assert error.message =~ "renames files, so it must contain nothing else"
-
-      assert error.message =~
-               "#{inspect(f.module)}.#{f.name}/#{f.arity} (body changed, line #{f.line})"
+      assert_fail(run_rule(Rules.Elixir, :pure_move, commit), message)
+      assert message =~ "renames files, so it must contain nothing else"
+      assert message =~ "#{inspect(f.module)}.#{f.name}/#{f.arity} (body changed, line #{f.line})"
     end
 
-    @tag scenario: :lib_with_tests
-    test "commits with no renames pass trivially", %{commit: commit} do
-      assert_pure_move(commit)
+    test "commits with no renames pass trivially", %{repo: repo} do
+      assert_pass(run_rule(Rules.Elixir, :pure_move, scenario(repo, :lib_with_tests)))
     end
   end
 
   describe "formatting-only commits" do
-    @tag scenario: :formatting_only
-    test "are detected", %{commit: commit} do
+    test "are detected", %{repo: repo} do
+      commit = scenario(repo, :formatting_only)
       assert formatting_only?(commit)
       refute behaviour_changed?(commit)
     end
 
-    @tag scenario: :formatting_with_logic
-    test "are distinguished from a logic change hidden in a reformat", %{commit: commit} do
+    test "are distinguished from a logic change hidden in a reformat", %{repo: repo} do
+      commit = scenario(repo, :formatting_with_logic)
       refute formatting_only?(commit)
       assert behaviour_changed?(commit)
     end
   end
 
-  describe "assert_behaviour_changes_tested/1" do
-    @tag scenario: :lib_with_tests
-    test "passes when tests change too", %{commit: commit} do
+  describe "Rules.ExUnit :behaviour_changes_tested" do
+    test "passes when tests change too", %{repo: repo} do
+      commit = scenario(repo, :lib_with_tests)
       assert behaviour_changed?(commit)
-      assert_behaviour_changes_tested(commit)
+      assert_pass(run_rule(Rules.ExUnit, :behaviour_changes_tested, commit))
     end
 
-    @tag scenario: :lib_without_tests
-    test "fails naming the changed function", %{commit: commit} do
+    test "fails naming the changed function", %{repo: repo} do
+      commit = scenario(repo, :lib_without_tests)
       [{_, f}] = elixir_diff(commit).functions.body_changed
+      assert_fail(run_rule(Rules.ExUnit, :behaviour_changes_tested, commit), message)
 
-      error =
-        assert_raise ExUnit.AssertionError, fn -> assert_behaviour_changes_tested(commit) end
-
-      assert error.message =~
+      assert message =~
                "Behaviour changed without any test changing:\n  #{inspect(f.module)}.#{f.name}/#{f.arity} (body changed)"
     end
 
-    @tag scenario: :docs_only
-    test "is vacuous for a docs-only change", %{commit: commit} do
+    test "is vacuous for a docs-only change", %{repo: repo} do
+      commit = scenario(repo, :docs_only)
       assert modified(commit, ~r{^lib/}) != []
       refute behaviour_changed?(commit)
-      assert_behaviour_changes_tested(commit)
+      assert_pass(run_rule(Rules.ExUnit, :behaviour_changes_tested, commit))
     end
 
-    @tag scenario: :formatting_only
-    test "is vacuous for a reformat", %{commit: commit} do
-      assert_behaviour_changes_tested(commit)
+    test "is vacuous for a reformat", %{repo: repo} do
+      assert_pass(
+        run_rule(Rules.ExUnit, :behaviour_changes_tested, scenario(repo, :formatting_only))
+      )
     end
   end
 
-  describe "size ceilings" do
-    @tag scenario: :lib_with_tests
-    test "pass under the ceiling", %{commit: commit} do
-      assert_max_files(commit, 20)
-      assert_max_additions(commit, 400)
+  describe "Rules.Shape" do
+    test "pass under the ceilings", %{repo: repo} do
+      commit = scenario(repo, :lib_with_tests)
+      assert_pass(run_rule(Rules.Shape, :max_files, commit, max_files: 20))
+      assert_pass(run_rule(Rules.Shape, :max_additions, commit, max_additions: 400))
     end
 
-    @tag scenario: :oversized
-    test "fail over it", %{commit: commit} do
+    test "fail over them", %{repo: repo} do
+      commit = scenario(repo, :oversized)
       count = length(commit.changes)
-
-      assert_raise ExUnit.AssertionError,
-                   ~r/at most 20 changed files, but the commit changes #{count}/,
-                   fn -> assert_max_files(commit, 20) end
+      assert_fail(run_rule(Rules.Shape, :max_files, commit, max_files: 20), message)
+      assert message =~ "at most 20 changed files, but the commit changes #{count}"
     end
   end
 
-  describe "refute_added/2: generated artifacts and editor droppings" do
-    @forbidden [~r{^priv/static/assets/}, ~r/\.DS_Store$/, ~r/\.(orig|rej|beam)$/]
-
-    @tag scenario: :lib_with_tests
-    test "passes on source-only commits", %{commit: commit} do
-      refute_added(commit, @forbidden)
+  describe "Rules.Hygiene :no_artifacts" do
+    test "passes on source-only commits", %{repo: repo} do
+      assert_pass(run_rule(Rules.Hygiene, :no_artifacts, scenario(repo, :lib_with_tests)))
     end
 
-    @tag scenario: :artifacts_committed
-    test "fails listing every offender, binary ones included", %{commit: commit} do
+    test "fails listing every offender, binary ones included", %{repo: repo} do
+      commit = scenario(repo, :artifacts_committed)
       assert Enum.any?(commit.changes, & &1.binary?)
-
-      error = assert_raise ExUnit.AssertionError, fn -> refute_added(commit, @forbidden) end
-      for path <- added(commit), do: assert(error.message =~ path)
+      artifacts = [~r{^priv/static/assets/}, ~r/\.DS_Store$/, ~r/\.(orig|rej|beam)$/]
+      assert_fail(run_rule(Rules.Hygiene, :no_artifacts, commit, artifacts: artifacts), message)
+      for path <- added(commit), do: assert(message =~ path)
     end
   end
 end

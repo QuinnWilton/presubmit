@@ -48,9 +48,16 @@ defmodule AssertCommit.Source.Facts do
             clauses: [non_neg_integer()]
           }
 
-    @doc "Whether the function is part of the module's public surface."
+    @doc "Whether the function is callable from other modules (`def` or `defmacro`)."
     @spec public?(t()) :: boolean()
     def public?(%__MODULE__{kind: kind}), do: kind in [:def, :defmacro]
+
+    @doc """
+    Whether the function is part of the module's documented API: public and
+    not marked `@doc false`.
+    """
+    @spec api?(t()) :: boolean()
+    def api?(%__MODULE__{doc: doc} = function), do: public?(function) and doc != false
 
     @doc "Identity used for diffing: `{module, name, arity}`."
     @spec key(t()) :: {module(), atom(), arity()}

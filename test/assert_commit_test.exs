@@ -1,55 +1,26 @@
-defmodule AssertCommitTest.StaticPolicy do
-  @moduledoc """
-  `use AssertCommit` with static options loads the commit once in `setup_all`.
-
-  Tags are merged over the `setup_all` context, so the injected `commit` key
-  must survive a module with tags of its own (and the tag `use AssertCommit`
-  adds must not be `:commit`).
-  """
-
-  use ExUnit.Case, async: true
-
-  @dir Path.expand("../tmp/fixtures/static-policy", __DIR__)
-
-  setup_all do
-    File.rm_rf!(@dir)
-    File.mkdir_p!(@dir)
-    on_exit(fn -> File.rm_rf!(@dir) end)
-    AssertCommit.Fixtures.build!("shape", @dir)
-    :ok
-  end
-
-  use AssertCommit, repo: Path.join(@dir, "repo"), rev: "scenario/pure_move"
-
-  @moduletag :static_policy
-
-  test "the loaded commit survives tag merging", %{commit: commit} = context do
-    assert %AssertCommit.Commit{source: :rev} = commit
-    assert commit.message.subject =~ "Move"
-    assert context.assert_commit == true
-    assert context.static_policy == true
-  end
-end
-
 defmodule AssertCommitTest do
   use ExUnit.Case, async: true
 
-  alias AssertCommit.{Commit, Fixtures}
+  alias AssertCommit.{Commit, FixtureRepo, Fixtures, Git}
 
   setup_all do: %{repo: Fixtures.repo("shape")}
 
-  test "function options are resolved against the test context", %{repo: repo} do
-    opts = [repo: & &1.repo, rev: &"scenario/#{&1.scenario}"]
+  describe "load/1 with source: :auto" do
+    test "resolves to :head when clean and :worktree when dirty", %{repo: repo} do
+      assert AssertCommit.resolve_source(repo: repo, source: :auto) == :head
+      assert %Commit{source: :head} = AssertCommit.load(repo: repo, source: :auto)
 
-    assert AssertCommit.commit(opts, %{repo: repo, scenario: :docs_only}).message.subject =~
-             "Document"
+      File.write!(Path.join(repo, "note.md"), "scratch\n")
+      on_exit(fn -> File.rm(Path.join(repo, "note.md")) end)
+      assert AssertCommit.resolve_source(repo: repo, source: :auto) == :worktree
 
-    assert AssertCommit.commit(opts, %{repo: repo, scenario: :oversized}).message.subject =~
-             "Generate"
-  end
+      assert %Commit{source: :worktree, changes: [%{path: "note.md"}]} =
+               AssertCommit.load(repo: repo, source: :auto)
+    end
 
-  test "source: :staged loads the index", %{repo: repo} do
-    assert %Commit{source: :staged, message: nil} =
-             AssertCommit.commit(repo: repo, source: :staged)
+    test "explicit sources pass through" do
+      assert AssertCommit.resolve_source(source: :staged) == :staged
+      assert AssertCommit.resolve_source(source: {:rev, "abc"}) == {:rev, "abc"}
+    end
   end
 end

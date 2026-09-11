@@ -70,6 +70,19 @@ defmodule AssertCommit.Source.DiffTest do
     assert Diff.public_api_changed?(d)
   end
 
+  test "@doc false functions are public but not API" do
+    d =
+      diff(
+        %{"lib/a.ex" => "defmodule A do\n  @doc false\n  def hidden, do: 1\nend\n"},
+        %{"lib/a.ex" => "defmodule A do\n  @doc false\n  def other, do: 1\nend\n"}
+      )
+
+    assert Enum.map(d.functions.removed, & &1.name) == [:hidden]
+    assert Diff.public_removed(d) == [] and Diff.public_added(d) == []
+    refute Diff.public_api_changed?(d)
+    assert Diff.behaviour_changed?(d)
+  end
+
   test "struct fields added and removed" do
     d =
       diff(%{"lib/a.ex" => "defmodule A do\n  defstruct [:x, :y]\nend\n"}, %{

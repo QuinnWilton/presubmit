@@ -1,189 +1,194 @@
 defmodule AssertCommit.Scenarios.PhoenixTest do
   @moduledoc """
-  Process rules for a Phoenix + Ecto application, run against
+  The Phoenix, Ecto, OTP, ExUnit, and Hygiene rule sets run against
   `fixtures/phoenix`: one scenario branch per patch, each named for the
-  situation it reproduces. Every test is the rule exactly as a team would
-  write it; nothing here names a module or a path.
+  situation it reproduces. Nothing here names a module or a path.
   """
 
   use ExUnit.Case, async: true
-  use AssertCommit, repo: & &1.repo, rev: &"scenario/#{&1.scenario}"
 
-  setup_all do: %{repo: AssertCommit.Fixtures.repo("phoenix")}
+  import AssertCommit.Query
+  import AssertCommit.RuleHelpers
 
-  describe "assert_routed/1: added controllers and LiveViews are reachable" do
-    @tag scenario: :routed_controller
-    test "passes when a router routes the new controller", %{commit: commit} do
-      assert [route] = routes_added(commit)
+  alias AssertCommit.Assertions.{Ecto, Phoenix}
+  alias AssertCommit.{Fixtures, Rules}
+
+  setup_all do: %{repo: Fixtures.repo("phoenix")}
+
+  describe "Rules.Phoenix :routed" do
+    test "passes when a router routes the new controller", %{repo: repo} do
+      commit = scenario(repo, :routed_controller)
+      assert [route] = Phoenix.routes_added(commit)
       assert route.plug in modules_added(commit)
-      assert_routed(commit)
+      assert_pass(run_rule(Rules.Phoenix, :routed, commit))
     end
 
-    @tag scenario: :routed_live_view
-    test "passes for a `live` route", %{commit: commit} do
-      assert [%{kind: :live}] = routes_added(commit)
-      assert_routed(commit)
+    test "passes for a `live` route", %{repo: repo} do
+      commit = scenario(repo, :routed_live_view)
+      assert [%{kind: :live}] = Phoenix.routes_added(commit)
+      assert_pass(run_rule(Rules.Phoenix, :routed, commit))
     end
 
-    @tag scenario: :unrouted_controller
-    test "fails when no router was touched", %{commit: commit} do
-      error = assert_raise ExUnit.AssertionError, fn -> assert_routed(commit) end
-      assert error.message =~ "were added but no router routes to them"
-      assert error.message =~ "(controller)"
+    test "fails when no router was touched", %{repo: repo} do
+      assert_fail(run_rule(Rules.Phoenix, :routed, scenario(repo, :unrouted_controller)), message)
+      assert message =~ "were added but no router routes to them"
+      assert message =~ "(controller)"
     end
 
-    @tag scenario: :unrouted_live_view
-    test "fails for an unrouted LiveView", %{commit: commit} do
-      error = assert_raise ExUnit.AssertionError, fn -> assert_routed(commit) end
-      assert error.message =~ "(live_view)"
+    test "fails for an unrouted LiveView", %{repo: repo} do
+      assert_fail(run_rule(Rules.Phoenix, :routed, scenario(repo, :unrouted_live_view)), message)
+      assert message =~ "(live_view)"
     end
 
-    @tag scenario: :router_touched_not_wired
-    test "fails when the router was edited but does not route the controller", %{commit: commit} do
-      # The router file changed, so a path-coupling rule is satisfied. The route is still missing.
-      assert_coupled(commit, ~r/_controller\.ex$/, then: ~r/router\.ex$/)
-      assert routes_added(commit) == []
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_routed(commit) end
-      assert error.message =~ "no router routes to them"
+    test "fails when the router was edited but does not route the controller", %{repo: repo} do
+      commit = scenario(repo, :router_touched_not_wired)
+      assert modified(commit, ~r/router\.ex$/) != []
+      assert Phoenix.routes_added(commit) == []
+      assert_fail(run_rule(Rules.Phoenix, :routed, commit), message)
+      assert message =~ "no router routes to them"
     end
 
-    @tag scenario: :migration_newest
-    test "is vacuous when nothing routable was added", %{commit: commit} do
+    test "is vacuous when nothing routable was added", %{repo: repo} do
+      commit = scenario(repo, :migration_newest)
       assert modules_added(commit) != []
-      assert_routed(commit)
+      assert_pass(run_rule(Rules.Phoenix, :routed, commit))
     end
   end
 
-  describe "assert_migrations_ordered/1" do
-    @tag scenario: :migration_newest
-    test "passes for a migration newer than every existing one", %{commit: commit} do
-      assert [added] = migrations_added(commit)
-      assert added == List.last(migrations(commit))
-      assert_migrations_ordered(commit)
+  describe "Rules.Ecto :migrations_ordered" do
+    test "passes for a migration newer than every existing one", %{repo: repo} do
+      commit = scenario(repo, :migration_newest)
+      assert [added] = Ecto.migrations_added(commit)
+      assert added == List.last(Ecto.migrations(commit))
+      assert_pass(run_rule(Rules.Ecto, :migrations_ordered, commit))
     end
 
-    @tag scenario: :migration_rebased
-    test "fails for a migration rebased underneath a newer one", %{commit: commit} do
-      [added] = migrations_added(commit)
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_migrations_ordered(commit) end
-      assert error.message =~ "older than the newest existing migration"
-      assert error.message =~ "#{added.path} (#{added.version})"
-      assert error.message =~ "Regenerate them"
+    test "fails for a migration rebased underneath a newer one", %{repo: repo} do
+      commit = scenario(repo, :migration_rebased)
+      [added] = Ecto.migrations_added(commit)
+      assert_fail(run_rule(Rules.Ecto, :migrations_ordered, commit), message)
+      assert message =~ "older than the newest existing migration"
+      assert message =~ "#{added.path} (#{added.version})"
+      assert message =~ "Regenerate them"
     end
 
-    @tag scenario: :routed_controller
-    test "is vacuous when no migration was added", %{commit: commit} do
-      assert migrations_added(commit) == []
-      assert_migrations_ordered(commit)
+    test "is vacuous when no migration was added", %{repo: repo} do
+      commit = scenario(repo, :routed_controller)
+      assert Ecto.migrations_added(commit) == []
+      assert_pass(run_rule(Rules.Ecto, :migrations_ordered, commit))
     end
   end
 
-  describe "assert_migrations_immutable/1" do
-    @tag scenario: :migration_newest
-    test "passes when only new migrations are added", %{commit: commit} do
-      assert_migrations_immutable(commit)
+  describe "Rules.Ecto :migrations_immutable" do
+    test "passes when only new migrations are added", %{repo: repo} do
+      assert_pass(run_rule(Rules.Ecto, :migrations_immutable, scenario(repo, :migration_newest)))
     end
 
-    @tag scenario: :migration_edited
-    test "fails when an existing migration is edited", %{commit: commit} do
+    test "fails when an existing migration is edited", %{repo: repo} do
+      commit = scenario(repo, :migration_edited)
       [path] = modified(commit)
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_migrations_immutable(commit) end
-      assert error.message =~ "#{path} (modified)"
+      assert_fail(run_rule(Rules.Ecto, :migrations_immutable, commit), message)
+      assert message =~ "#{path} (modified)"
     end
   end
 
-  describe "assert_schema_changes_migrated/1" do
-    @tag scenario: :schema_field_with_migration
-    test "passes when the added column is added by an added migration", %{commit: commit} do
-      assert_schema_changes_migrated(commit)
+  describe "Rules.Ecto :schema_changes_migrated" do
+    test "passes when the added column is added by an added migration", %{repo: repo} do
+      assert_pass(
+        run_rule(
+          Rules.Ecto,
+          :schema_changes_migrated,
+          scenario(repo, :schema_field_with_migration)
+        )
+      )
     end
 
-    @tag scenario: :schema_field_without_migration
-    test "fails naming the column and table", %{commit: commit} do
-      error = assert_raise ExUnit.AssertionError, fn -> assert_schema_changes_migrated(commit) end
-      assert error.message =~ "were added without a migration adding them to the table"
-      assert error.message =~ ~r/\.name \(table "users"\)/
-      assert error.message =~ "No migration was added in this commit."
+    test "fails naming the column and table", %{repo: repo} do
+      assert_fail(
+        run_rule(
+          Rules.Ecto,
+          :schema_changes_migrated,
+          scenario(repo, :schema_field_without_migration)
+        ),
+        message
+      )
+
+      assert message =~ "were added without a migration adding them to the table"
+      assert message =~ ~r/\.name \(table "users"\)/
+      assert message =~ "No migration was added in this commit."
     end
 
-    @tag scenario: :migration_newest
-    test "is vacuous when no schema changed", %{commit: commit} do
-      assert_schema_changes_migrated(commit)
-    end
-  end
-
-  describe "assert_indexes_concurrent/1" do
-    @tag scenario: :safe_index_migration
-    test "passes for a concurrent index in a non-transactional migration", %{commit: commit} do
-      assert_indexes_concurrent(commit)
-    end
-
-    @tag scenario: :unsafe_index_migration
-    test "fails naming both problems", %{commit: commit} do
-      error = assert_raise ExUnit.AssertionError, fn -> assert_indexes_concurrent(commit) end
-      assert error.message =~ "is missing `concurrently: true`"
-      assert error.message =~ "needs `@disable_ddl_transaction true`"
-    end
-  end
-
-  describe "assert_migrations_reversible/1" do
-    @tag scenario: :migration_newest
-    test "passes for a `change/0` migration without raw SQL", %{commit: commit} do
-      assert_migrations_reversible(commit)
+    test "is vacuous when no schema changed", %{repo: repo} do
+      assert_pass(
+        run_rule(Rules.Ecto, :schema_changes_migrated, scenario(repo, :migration_newest))
+      )
     end
   end
 
-  describe "assert_supervised/1" do
-    @tag scenario: :supervised_genserver
-    test "passes when the application starts the new server", %{commit: commit} do
-      assert_supervised(commit)
+  describe "Rules.Ecto :indexes_concurrent" do
+    test "passes for a concurrent index in a non-transactional migration", %{repo: repo} do
+      assert_pass(
+        run_rule(Rules.Ecto, :indexes_concurrent, scenario(repo, :safe_index_migration))
+      )
     end
 
-    @tag scenario: :unsupervised_genserver
-    test "fails when nothing starts it", %{commit: commit} do
+    test "fails naming both problems", %{repo: repo} do
+      assert_fail(
+        run_rule(Rules.Ecto, :indexes_concurrent, scenario(repo, :unsafe_index_migration)),
+        message
+      )
+
+      assert message =~ "is missing `concurrently: true`"
+      assert message =~ "needs `@disable_ddl_transaction true`"
+    end
+  end
+
+  describe "Rules.Ecto :migrations_reversible" do
+    test "passes for a `change/0` migration without raw SQL", %{repo: repo} do
+      assert_pass(run_rule(Rules.Ecto, :migrations_reversible, scenario(repo, :migration_newest)))
+    end
+  end
+
+  describe "Rules.OTP :supervised" do
+    test "passes when the application starts the new server", %{repo: repo} do
+      assert_pass(run_rule(Rules.OTP, :supervised, scenario(repo, :supervised_genserver)))
+    end
+
+    test "fails when nothing starts it", %{repo: repo} do
+      commit = scenario(repo, :unsupervised_genserver)
       [orphan] = modules_added(commit)
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_supervised(commit) end
-      assert error.message =~ "#{inspect(orphan)} (gen_server)"
-      assert error.message =~ "Supervision trees checked:"
+      assert_fail(run_rule(Rules.OTP, :supervised, commit), message)
+      assert message =~ "#{inspect(orphan)} (gen_server)"
+      assert message =~ "Supervision trees checked:"
     end
   end
 
-  describe "assert_tested/1" do
-    @tag scenario: :routed_controller
-    test "passes when a <Module>Test exists", %{commit: commit} do
-      assert_tested(commit)
+  describe "Rules.ExUnit :tested" do
+    test "passes when a <Module>Test exists", %{repo: repo} do
+      assert_pass(run_rule(Rules.ExUnit, :tested, scenario(repo, :routed_controller)))
     end
 
-    @tag scenario: :unsupervised_genserver
-    test "fails naming the untested module", %{commit: commit} do
+    test "fails naming the untested module", %{repo: repo} do
+      commit = scenario(repo, :unsupervised_genserver)
       [untested] = modules_added(commit)
-
-      error = assert_raise ExUnit.AssertionError, fn -> assert_tested(commit) end
-      assert error.message =~ "have no test module"
-      assert error.message =~ inspect(untested)
+      assert_fail(run_rule(Rules.ExUnit, :tested, commit), message)
+      assert message =~ "have no test module"
+      assert message =~ inspect(untested)
     end
   end
 
-  describe "refute_added_lines/3: no debugging calls" do
-    @debug ~r/\b(IO\.inspect|dbg|IEx\.pry)\(/
-
-    @tag scenario: :routed_controller
-    test "passes on clean commits", %{commit: commit} do
-      refute_added_lines(commit, @debug, in: ~r{^lib/})
+  describe "Rules.Hygiene :no_debug_calls" do
+    test "passes on clean commits", %{repo: repo} do
+      assert_pass(run_rule(Rules.Hygiene, :no_debug_calls, scenario(repo, :routed_controller)))
     end
 
-    @tag scenario: :debug_left_in
-    test "fails pointing at the line", %{commit: commit} do
-      error =
-        assert_raise ExUnit.AssertionError, fn ->
-          refute_added_lines(commit, @debug, in: ~r{^lib/})
-        end
+    test "fails pointing at the line", %{repo: repo} do
+      assert_fail(
+        run_rule(Rules.Hygiene, :no_debug_calls, scenario(repo, :debug_left_in)),
+        message
+      )
 
-      assert error.message =~ ~r/^  lib\/.*:\d+: IO\.inspect\(/m
+      assert message =~ ~r/^  lib\/.*:\d+: IO\.inspect\(/m
     end
   end
 end

@@ -1,61 +1,25 @@
 defmodule AssertCommitDogfoodTest do
   @moduledoc """
-  assert_commit's own commit policy, asserted on this repository's `HEAD`.
-
-  Excluded automatically when `HEAD~1` is not available (fresh checkout or
-  depth-1 clone); see `test/test_helper.exs`.
+  Runs this repository's own `.assert_commit.exs` against its `HEAD`, the way
+  CI does with `mix assert_commit --head`. Excluded when `HEAD~1` is
+  unavailable (fresh checkout or depth-1 clone); see `test/test_helper.exs`.
   """
 
   use ExUnit.Case, async: true
-  use AssertCommit
+
+  alias AssertCommit.{Config, Formatter, Runner}
+  alias AssertCommit.Runner.Report
 
   @moduletag :dogfood
 
-  test "no debugging calls are committed", %{commit: commit} do
-    refute_added_lines(commit, ~r/\b(IO\.inspect|dbg|IEx\.pry)\(/, in: ~r{^lib/})
-  end
+  test "HEAD satisfies the project's commit policy" do
+    root = Path.expand("..", __DIR__)
+    config = Config.load!(repo: root)
+    assert config.path == Path.join(root, ".assert_commit.exs")
 
-  test "no build artifacts or editor droppings", %{commit: commit} do
-    refute_added(commit, [~r{^_build/}, ~r/\.beam$/, ~r/\.DS_Store$/, ~r/\.(orig|rej)$/])
-  end
+    report = Runner.run(AssertCommit.load(repo: root, source: :head), config.rules)
 
-  test "new public functions have specs and new modules have docs", %{commit: commit} do
-    assert_specs(commit)
-    assert_moduledoc(commit)
-  end
-
-  test "moves are their own commit", %{commit: commit} do
-    assert_pure_move(commit)
-  end
-
-  test "behaviour changes in lib/ ship with test changes", %{commit: commit} do
-    assert_behaviour_changes_tested(commit)
-  end
-
-  # `assert_tested/1` is not applied here: the assertion modules are covered by the scenario
-  # suites through `use AssertCommit`, which `ExUnitCase.covers?/2` cannot see as a reference.
-
-  test "public API changes are logged and removals were deprecated first", %{commit: commit} do
-    assert_api_changes_logged(commit)
-    assert_removals_deprecated(commit)
-  end
-
-  test "mix.lock is in sync with mix.exs", %{commit: commit} do
-    assert_lock_in_sync(commit)
-  end
-
-  test "releases have a changelog section", %{commit: commit} do
-    assert_release_logged(commit)
-  end
-
-  test "LLM-assisted commits link their session", %{commit: commit} do
-    if Enum.any?(trailer(commit, "Co-Authored-By"), &(&1 =~ ~r/anthropic\.com/)) do
-      assert_trailer(commit, "Claude-Session", ~r{^https://claude\.ai/code/session_})
-    end
-  end
-
-  test "subjects follow the [component] convention and fit in 72 columns", %{commit: commit} do
-    assert_subject(commit, ~r/^\[[a-z_-]+\] .{1,60}$/)
-    refute_subject(commit, ~r/^(fixup|squash|amend)!/)
+    assert Report.status(report) == :pass,
+           [report] |> Formatter.render(:text) |> IO.iodata_to_binary()
   end
 end
