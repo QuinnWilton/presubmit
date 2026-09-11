@@ -28,7 +28,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      # The dogfood suite asserts on HEAD, which needs HEAD's parent to be present.
+      # HEAD is asserted on by the dogfood test and `mix assert_commit --head`, which need its parent.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -47,6 +47,7 @@ jobs:
       - run: mix deps.get
       - run: mix compile --warnings-as-errors
       - run: mix test
+      - run: mix assert_commit --head
 
   credo:
     name: Credo
