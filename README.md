@@ -49,11 +49,14 @@ mix assert_commit.install     # commit-msg hook: checks staged changes + message
 mix assert_commit             # run it by hand; picks the working tree if dirty, else HEAD
 ```
 
-The hook runs `mix assert_commit --staged --message-file "$1"`, so every
-rule — message rules included — runs before the commit exists. Add
-`--pre-commit` for an earlier content-only pass before the editor opens;
-`--uninstall` removes both. Hooks are per clone and `git commit --no-verify`
-skips them, so CI is the backstop:
+The `commit-msg` hook runs `mix assert_commit --staged --message-file "$1"`,
+so every rule — message rules included — runs before the commit exists. A
+companion `prepare-commit-msg` hook notices `git commit --amend` and has the
+amended commit checked (`HEAD^` to the index) instead of the delta since
+`HEAD`, which could never satisfy a rule whose other half is in the original
+commit. Add `--pre-commit` for an earlier content-only pass before the editor
+opens; `--uninstall` removes them all. Hooks are per clone and
+`git commit --no-verify` skips them, so CI is the backstop:
 
 ```yaml
 # .github/workflows/ci.yml
@@ -157,7 +160,7 @@ reproduces, readable as such.
 |---|---|
 | *(none)* | the working tree if anything differs from `HEAD`, else `HEAD` |
 | `--head`, `--rev REV` | a commit |
-| `--staged [--message-file F]` | the index against `HEAD`, optionally with the message being written |
+| `--staged [--message-file F] [--base REV]` | the index against `HEAD` (or `REV`), optionally with the message being written |
 | `--worktree` | everything on disk against `HEAD` |
 | `--range A..B` | each non-merge commit in the range |
 

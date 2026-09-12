@@ -16,7 +16,7 @@ Layers, bottom up. Each depends only on the ones below it.
 - `AssertCommit.Adapter` + `AssertCommit.Adapters.*` — `recognize?/1` and `extract/1` over a `Facts.Module`. `PhoenixRouter` reproduces Phoenix's scope-alias concatenation exactly.
 - `AssertCommit.MixFile`, `AssertCommit.Changelog` — file-level parsers.
 - `AssertCommit.Query` (data) and `AssertCommit.Assertions{,.Phoenix,.Ecto,.OTP,.ExUnit,.Mix,.Changelog}` (verbs that raise `AssertCommit.Violation` via `Assertions.Flunk`).
-- `AssertCommit.Hooks` + `Mix.Tasks.AssertCommit.Install` — writes marker-tagged `commit-msg` (and optional `pre-commit`) hooks; never overwrites a foreign hook. `--message-file` attaches the message to `--staged` so message rules run in the hook (`Message.clean/1` strips comments and scissors as git does).
+- `AssertCommit.Hooks` + `Mix.Tasks.AssertCommit.Install` — writes marker-tagged `prepare-commit-msg` + `commit-msg` (and optional `pre-commit`) hooks; never overwrites a foreign hook. `prepare-commit-msg` sees git's `commit` source with `HEAD`'s SHA on `--amend` and records `HEAD^` in `.git/assert_commit_base`; `commit-msg` turns that into `--base`, so the amended commit is checked, not the delta. `--message-file` attaches the message to `--staged` so message rules run in the hook (`Message.clean/1` strips comments and scissors as git does).
 - `AssertCommit.Rule`, `RuleSet` (the `rule/3` DSL; `use AssertCommit.RuleSet, requires: [...]`; `applicable?/2`), `Rules.*` (built-in sets), `Config` (`.assert_commit.exs`, or `default/1` which enables sets whose `requires/0` hold — VM-loaded module, declared/locked dep, or file present — and records `detection`), `Runner` (`Report`/`Result`, `run_range/3`), `Formatter` (text/JSON; every rendering starts by naming the source), `CLI` (argument parsing, source selection, CI warning, exit status), `Mix.Tasks.AssertCommit`.
 
 Design rules: after-tree invariants triggered by diff predicates, not diff-only coupling. Explicit sources; `:auto` only at the CLI, and always announced. Rules with nothing configured return `{:skip, reason}` rather than passing silently. Defaults must have a low false-positive rate on an ordinary project, and anything detection-dependent is announced in the output.
@@ -51,6 +51,7 @@ mix dialyzer                  # static analysis
 - `Code.string_to_quoted/2` warns on `mix.lock`'s quoted keywords; `MixFile` passes `emit_warnings: false`.
 - The formatter parenthesises `rule`/`assert_pass`/`assert_fail` unless `.formatter.exs` lists them in `locals_without_parens`, and does not remove parens it already added.
 - `setup_all` does not get a `tmp_dir`; use `Fixtures.repo/1`.
+- Never `git reset --hard` with uncommitted work in the tree; a refused hook means the commit did not happen, so `HEAD~1` is the previous real commit. Stash or commit first.
 - Dialyzer rejects `MapSet.t()` inside a map type in a `@spec` (opaque subterm); `RuleSet.env()` uses plain lists.
 - Map key order is not stable across OTP versions; `AssertCommit.JSON` sorts keys.
 
