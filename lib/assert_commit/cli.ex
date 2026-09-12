@@ -20,7 +20,8 @@ defmodule AssertCommit.CLI do
     color: :boolean,
     list: :boolean,
     message: :string,
-    message_file: :string
+    message_file: :string,
+    base: :string
   ]
 
   @type result :: {exit_status :: 0 | 1 | 2, output :: iodata()}
@@ -65,7 +66,14 @@ defmodule AssertCommit.CLI do
           {config, Runner.run_range(repo, range, config.rules), []}
 
         source ->
-          commit = AssertCommit.load(repo: repo, source: source, message: message(opts, source))
+          commit =
+            AssertCommit.load(
+              repo: repo,
+              source: source,
+              message: message(opts, source),
+              base: base(opts, source)
+            )
+
           config = load_config(opts, commit)
           {config, [Runner.run(commit, config.rules)], ci_note(source, commit, env)}
       end
@@ -123,6 +131,14 @@ defmodule AssertCommit.CLI do
     end
 
     text
+  end
+
+  defp base(opts, source) do
+    case Keyword.get(opts, :base) do
+      nil -> nil
+      base when source in [:staged, :worktree] -> base
+      _ -> raise Config.Error, message: "--base only applies to --staged or --worktree"
+    end
   end
 
   defp read_message_file(path) do
@@ -235,6 +251,7 @@ defmodule AssertCommit.CLI do
       Options:
         --message-file P  attach the message in file P to a --staged/--worktree change set (commit-msg hook)
         --message TEXT    attach TEXT as the message
+        --base REV        measure --staged/--worktree against REV instead of HEAD (HEAD^ while amending)
         --repo PATH       repository to examine (default: current directory)
         --config PATH     rule configuration (default: .assert_commit.exs, or built-in defaults)
         --format FORMAT   text (default) or json

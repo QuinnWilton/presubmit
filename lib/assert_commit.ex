@@ -29,6 +29,8 @@ defmodule AssertCommit do
     and `:head` otherwise.
   - `:message` — raw message text to attach to a `:staged` or `:worktree`
     change set (from a `commit-msg` hook, say), cleaned as git would.
+  - `:base` — tree-ish to measure a `:staged` or `:worktree` change set
+    against instead of `HEAD` (`"HEAD^"` while amending).
   """
   @spec load(keyword()) :: Commit.t()
   def load(opts \\ []) do

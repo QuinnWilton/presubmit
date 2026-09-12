@@ -48,10 +48,10 @@ defmodule AssertCommit.Formatter do
   @doc "One line describing what a report examined."
   @spec describe(Commit.t()) :: String.t()
   def describe(%Commit{source: :worktree} = c),
-    do: "working tree (#{differ(c)} from HEAD)#{with_subject(c)}"
+    do: "working tree (#{differ(c)} from #{c.base || "HEAD"})#{with_subject(c)}"
 
   def describe(%Commit{source: :staged} = c),
-    do: "staged index (#{differ(c)} from HEAD)#{with_subject(c)}"
+    do: "staged index (#{differ(c)} from #{c.base || "HEAD"})#{with_subject(c)}"
 
   def describe(%Commit{source: :synthetic}), do: "synthetic change set"
   def describe(%Commit{sha: sha} = c), do: "#{short(sha)} #{Query.subject(c)}"

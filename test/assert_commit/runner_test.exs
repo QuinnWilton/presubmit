@@ -85,6 +85,9 @@ defmodule AssertCommit.RunnerTest do
 
       assert Formatter.describe(%{commit | source: :staged, message: nil}) ==
                "staged index (2 files differ from HEAD)"
+
+      assert Formatter.describe(%{commit | source: :staged, message: nil, base: "HEAD^"}) ==
+               "staged index (2 files differ from HEAD^)"
     end
 
     test "json carries the same fields", %{repo: repo} do

@@ -22,7 +22,8 @@ defmodule AssertCommit.Commit do
             before: nil,
             after: nil,
             changes: [],
-            elixir: nil
+            elixir: nil,
+            base: nil
 
   @type person :: %{name: String.t(), email: String.t(), date: DateTime.t()}
 
@@ -36,7 +37,8 @@ defmodule AssertCommit.Commit do
           before: Tree.t(),
           after: Tree.t(),
           changes: [FileChange.t()],
-          elixir: Diff.t() | nil
+          elixir: Diff.t() | nil,
+          base: String.t() | nil
         }
 
   @doc """
@@ -99,10 +101,13 @@ defmodule AssertCommit.Commit do
 
   @doc """
   Loads the staged index of the repository at `opts[:repo]` as a change set
-  against `HEAD`.
+  against `HEAD`, or against `opts[:base]` (any tree-ish) when given.
 
   The result has no `sha` or `message`; message assertions raise
   `AssertCommit.NoMessageError`. On an unborn branch the before tree is empty.
+
+  `base:` is what an amend needs: measured against `HEAD^`, the index is the
+  commit that `git commit --amend` will produce.
   """
   @spec staged(keyword()) :: t()
   def staged(opts \\ []) do
@@ -114,14 +119,16 @@ defmodule AssertCommit.Commit do
         {:error, error} -> raise error
       end
 
-    against_head(repo, after_oid)
+    against_base(repo, after_oid, Keyword.get(opts, :base))
   end
 
-  defp against_head(repo, after_oid) do
+  defp against_base(repo, after_oid, base) do
     before_oid =
-      case Git.rev_parse(repo, "HEAD^{tree}") do
+      case Git.rev_parse(repo, "#{base || "HEAD"}^{tree}") do
         {:ok, oid} -> oid
-        {:error, _} -> Git.empty_tree(repo)
+        # Without an explicit base, no HEAD means an unborn branch: measure against the empty tree.
+        {:error, _} when is_nil(base) -> Git.empty_tree(repo)
+        {:error, error} -> raise error
       end
 
     before = Tree.from_git(repo, before_oid)
@@ -129,6 +136,7 @@ defmodule AssertCommit.Commit do
 
     with_diff(%__MODULE__{
       source: :staged,
+      base: base,
       before: before,
       after: after_tree,
       changes: git_changes(repo, before, after_tree)
@@ -139,8 +147,8 @@ defmodule AssertCommit.Commit do
   Loads the working directory of the repository at `opts[:repo]` as a change
   set against `HEAD`: staged and unstaged edits and untracked files alike.
 
-  Like `staged/1`, the result has no `sha` or `message`. The repository's
-  index is not touched (see `AssertCommit.Git.write_worktree_tree/1`).
+  Like `staged/1`, the result has no `sha` or `message` and accepts `base:`.
+  The repository's index is not touched (see `AssertCommit.Git.write_worktree_tree/1`).
   """
   @spec worktree(keyword()) :: t()
   def worktree(opts \\ []) do
@@ -152,7 +160,7 @@ defmodule AssertCommit.Commit do
         {:error, error} -> raise error
       end
 
-    %{against_head(repo, after_oid) | source: :worktree}
+    %{against_base(repo, after_oid, Keyword.get(opts, :base)) | source: :worktree}
   end
 
   @doc """

@@ -113,6 +113,38 @@ defmodule AssertCommit.CLITest do
     assert out =~ "✓ no fixup!/squash!/amend! commits"
   end
 
+  test "--base checks the amended commit rather than the delta since HEAD" do
+    # scenario/lib_with_tests: one commit that changes lib/ and its test together.
+    repo = AssertCommit.Fixtures.repo("shape")
+    AssertCommit.Git.run!(repo, ["checkout", "-q", "scenario/lib_with_tests"])
+    cart = Path.join(repo, "lib/shop/cart.ex")
+
+    File.write!(
+      cart,
+      String.replace(
+        File.read!(cart),
+        "ceil(item.price * item.quantity)",
+        "ceil(item.price * item.quantity * 1)"
+      )
+    )
+
+    AssertCommit.Git.run!(repo, ["add", "lib/shop/cart.ex"])
+
+    config =
+      write_config(repo, "[{AssertCommit.Rules.ExUnit, only: [:behaviour_changes_tested]}]")
+
+    # The delta alone changes lib/ without touching a test: an amendment could never satisfy this.
+    {1, delta} = run(["--repo", repo, "--staged", "--no-color", "--config", config])
+    assert delta =~ "✗ behaviour changes in lib/ come with test changes"
+
+    # Measured against HEAD^, the change set is the commit the amend will produce, test included.
+    {0, amended} =
+      run(["--repo", repo, "--staged", "--base", "HEAD^", "--no-color", "--config", config])
+
+    assert amended =~ ~r/^Examining staged index \(2 files differ from HEAD\^\)\n/m
+    assert amended =~ "✓ behaviour changes in lib/ come with test changes"
+  end
+
   test "a message cannot be attached to a commit, and only one message option is accepted", %{
     repo: repo
   } do
@@ -124,6 +156,9 @@ defmodule AssertCommit.CLITest do
 
     assert {2, "error: cannot read --message-file /nope: " <> _} =
              run(["--repo", repo, "--staged", "--message-file", "/nope"])
+
+    assert {2, "error: --base only applies to --staged or --worktree" <> _} =
+             run(["--repo", repo, "--head", "--base", "HEAD^"])
   end
 
   test "--range reports every commit in the range", %{repo: repo} do

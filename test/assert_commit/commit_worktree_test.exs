@@ -59,6 +59,33 @@ defmodule AssertCommit.CommitWorktreeTest do
     end
   end
 
+  describe "base:" do
+    test "measures the index against another tree-ish, as an amend needs", %{repo: repo} do
+      Git.run!(repo, ["checkout", "-q", "scenario/docs_only"])
+      on_exit(fn -> Git.run!(repo, ["checkout", "-q", "main"]) end)
+      File.write!(Path.join(repo, "extra.txt"), "x\n")
+      Git.run!(repo, ["add", "extra.txt"])
+
+      on_exit(fn ->
+        Git.run!(repo, ["reset", "-q", "--", "extra.txt"]) &&
+          File.rm(Path.join(repo, "extra.txt"))
+      end)
+
+      delta = Commit.staged(repo: repo)
+      assert Enum.map(delta.changes, & &1.path) == ["extra.txt"]
+      assert delta.base == nil
+
+      amended = Commit.staged(repo: repo, base: "HEAD^")
+      assert Enum.map(amended.changes, & &1.path) == ["extra.txt", "lib/shop/cart.ex"]
+      assert amended.base == "HEAD^"
+      assert Commit.worktree(repo: repo, base: "HEAD^").base == "HEAD^"
+    end
+
+    test "an unknown base is an error, not the empty tree", %{repo: repo} do
+      assert_raise AssertCommit.GitError, fn -> Commit.staged(repo: repo, base: "nope") end
+    end
+  end
+
   describe "Git.dirty?/1" do
     test "is false on a clean checkout and true for an untracked file", %{repo: repo} do
       refute Git.dirty?(repo)

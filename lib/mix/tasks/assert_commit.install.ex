@@ -4,9 +4,11 @@ defmodule Mix.Tasks.AssertCommit.Install do
   @moduledoc """
   Installs a `commit-msg` hook that runs `mix assert_commit --staged
   --message-file "$1"`, so the staged changes and the message are checked
-  together before the commit is created.
+  together before the commit is created, and a `prepare-commit-msg` hook that
+  tells it when the commit amends `HEAD`, so the amended commit (`HEAD^` to
+  the index) is what gets checked rather than the delta since `HEAD`.
 
-      mix assert_commit.install                # commit-msg hook
+      mix assert_commit.install                # prepare-commit-msg + commit-msg hooks
       mix assert_commit.install --pre-commit   # also a pre-commit hook (content rules, before the editor opens)
       mix assert_commit.install --uninstall    # remove the hooks this task installed
 
@@ -31,8 +33,7 @@ defmodule Mix.Tasks.AssertCommit.Install do
       {:ok, removed} = Hooks.uninstall(repo)
       report("removed", removed)
     else
-      hooks =
-        if Keyword.get(opts, :pre_commit), do: ["commit-msg", "pre-commit"], else: ["commit-msg"]
+      hooks = Hooks.default() ++ if(Keyword.get(opts, :pre_commit), do: ["pre-commit"], else: [])
 
       case Hooks.install(repo, hooks) do
         {:ok, paths} -> report("installed", paths)

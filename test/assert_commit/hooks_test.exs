@@ -3,7 +3,7 @@ defmodule AssertCommit.HooksTest do
 
   import ExUnit.CaptureIO
 
-  alias AssertCommit.{FixtureRepo, Hooks}
+  alias AssertCommit.{FixtureRepo, Git, Hooks}
   alias Mix.Tasks.AssertCommit.Install
 
   setup do
@@ -14,24 +14,30 @@ defmodule AssertCommit.HooksTest do
     %{repo: FixtureRepo.init!(dir).path}
   end
 
-  test "installs an executable commit-msg hook by default, idempotently", %{repo: repo} do
-    assert {:ok, [path]} = Hooks.install(repo)
-    assert path == Path.join(repo, ".git/hooks/commit-msg")
-    assert File.stat!(path).mode |> Bitwise.band(0o111) != 0
-    assert File.read!(path) =~ ~s|exec mix assert_commit --staged --message-file "$1"|
-    assert Hooks.installed(repo) == ["commit-msg"]
+  test "installs executable prepare-commit-msg and commit-msg hooks by default, idempotently", %{
+    repo: repo
+  } do
+    assert {:ok, paths} = Hooks.install(repo)
+    assert Enum.map(paths, &Path.basename/1) == ["prepare-commit-msg", "commit-msg"]
 
-    assert {:ok, [^path]} = Hooks.install(repo)
+    for path <- paths do
+      assert Bitwise.band(File.stat!(path).mode, 0o111) != 0
+      assert File.read!(path) =~ "# installed by mix assert_commit.install"
+    end
+
+    assert File.read!(Path.join(repo, ".git/hooks/commit-msg")) =~
+             ~s|exec mix assert_commit --staged --base "$base" --message-file "$1"|
+
+    assert Hooks.installed(repo) == ["commit-msg", "prepare-commit-msg"]
+    assert {:ok, ^paths} = Hooks.install(repo)
   end
 
   test "installs a pre-commit hook on request", %{repo: repo} do
-    assert {:ok, paths} = Hooks.install(repo, ["commit-msg", "pre-commit"])
-    assert Enum.map(paths, &Path.basename/1) == ["commit-msg", "pre-commit"]
+    assert {:ok, paths} = Hooks.install(repo, Hooks.default() ++ ["pre-commit"])
+    assert "pre-commit" in Enum.map(paths, &Path.basename/1)
 
     assert File.read!(Path.join(repo, ".git/hooks/pre-commit")) =~
              "exec mix assert_commit --staged\n"
-
-    assert Hooks.installed(repo) == ["commit-msg", "pre-commit"]
   end
 
   test "refuses to overwrite a hook it did not install, and leaves it alone on uninstall", %{
@@ -43,40 +49,76 @@ defmodule AssertCommit.HooksTest do
 
     assert {:error, message} = Hooks.install(repo)
     assert message =~ "already exists and was not installed by assert_commit"
-    assert message =~ ~s|--message-file "$1"|
+    assert message =~ ~s|AssertCommit.Hooks.script("commit-msg")|
     assert File.read!(foreign) =~ "theirs"
+    refute File.exists?(Path.join(repo, ".git/hooks/prepare-commit-msg"))
 
     assert {:ok, []} = Hooks.uninstall(repo)
     assert File.exists?(foreign)
   end
 
   test "uninstall removes only its own hooks", %{repo: repo} do
-    {:ok, _} = Hooks.install(repo, ["commit-msg", "pre-commit"])
+    {:ok, _} = Hooks.install(repo, Hooks.default() ++ ["pre-commit"])
     assert {:ok, removed} = Hooks.uninstall(repo)
-    assert length(removed) == 2
+    assert length(removed) == 3
     assert Hooks.installed(repo) == []
-    refute File.exists?(Path.join(repo, ".git/hooks/commit-msg"))
   end
 
   test "the mix task reports what it did", %{repo: repo} do
-    assert capture_io(fn -> Install.run(["--repo", repo]) end) =~
-             "installed "
-
-    assert capture_io(fn ->
-             Install.run(["--repo", repo, "--uninstall"])
-           end) =~ "removed "
-
-    assert capture_io(fn ->
-             Install.run(["--repo", repo, "--uninstall"])
-           end) =~ "nothing to do"
+    assert capture_io(fn -> Install.run(["--repo", repo]) end) =~ "installed "
+    assert capture_io(fn -> Install.run(["--repo", repo, "--uninstall"]) end) =~ "removed "
+    assert capture_io(fn -> Install.run(["--repo", repo, "--uninstall"]) end) =~ "nothing to do"
   end
 
-  test "the installed commit-msg hook is what git would run", %{repo: repo} do
-    {:ok, _} = Hooks.install(repo)
+  describe "the prepare-commit-msg script" do
+    # Runs the installed script the way git would: (message file, source, sha).
+    defp prepare(repo, args) do
+      {out, status} =
+        System.cmd("sh", [Path.join(repo, ".git/hooks/prepare-commit-msg") | args],
+          cd: repo,
+          stderr_to_stdout: true
+        )
 
-    hooks_dir =
-      repo |> AssertCommit.Git.run!(["rev-parse", "--git-path", "hooks"]) |> String.trim()
+      assert status == 0, out
+      flag = Path.join(repo, ".git/assert_commit_base")
+      if File.exists?(flag), do: {:flag, String.trim(File.read!(flag))}, else: :none
+    end
 
-    assert Path.expand(hooks_dir, repo) == Path.join(repo, ".git/hooks")
+    setup %{repo: repo} do
+      repo = %FixtureRepo{path: repo}
+      repo = FixtureRepo.commit!(repo, message: "first", write: %{"a" => "1\n"})
+      repo = FixtureRepo.commit!(repo, message: "second", write: %{"b" => "2\n"})
+      {:ok, _} = Hooks.install(repo.path)
+
+      %{
+        repo: repo.path,
+        head: FixtureRepo.sha(repo, "HEAD"),
+        parent: FixtureRepo.sha(repo, "HEAD^")
+      }
+    end
+
+    test "records HEAD^ when amending HEAD", %{repo: repo, head: head, parent: parent} do
+      assert prepare(repo, ["msg", "commit", head]) == {:flag, parent}
+      assert prepare(repo, ["msg", "commit", "HEAD"]) == {:flag, parent}
+    end
+
+    test "records nothing for an ordinary commit, a template, or reusing another commit's message",
+         %{repo: repo, parent: parent} do
+      assert prepare(repo, ["msg"]) == :none
+      assert prepare(repo, ["msg", "message"]) == :none
+      assert prepare(repo, ["msg", "template"]) == :none
+      assert prepare(repo, ["msg", "commit", parent]) == :none
+    end
+
+    test "clears a stale flag from an aborted amend", %{repo: repo, head: head} do
+      assert {:flag, _} = prepare(repo, ["msg", "commit", head])
+      assert prepare(repo, ["msg"]) == :none
+    end
+
+    test "uses the empty tree when amending a root commit", %{repo: repo} do
+      Git.run!(repo, ["checkout", "-q", "--orphan", "solo"])
+      Git.run!(repo, ["commit", "-q", "--allow-empty", "--no-verify", "-m", "root"])
+      assert prepare(repo, ["msg", "commit", "HEAD"]) == {:flag, Git.empty_tree(repo)}
+    end
   end
 end
