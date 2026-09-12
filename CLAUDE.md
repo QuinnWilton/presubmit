@@ -16,9 +16,9 @@ Layers, bottom up. Each depends only on the ones below it.
 - `AssertCommit.Adapter` + `AssertCommit.Adapters.*` — `recognize?/1` and `extract/1` over a `Facts.Module`. `PhoenixRouter` reproduces Phoenix's scope-alias concatenation exactly.
 - `AssertCommit.MixFile`, `AssertCommit.Changelog` — file-level parsers.
 - `AssertCommit.Query` (data) and `AssertCommit.Assertions{,.Phoenix,.Ecto,.OTP,.ExUnit,.Mix,.Changelog}` (verbs that raise `AssertCommit.Violation` via `Assertions.Flunk`).
-- `AssertCommit.Rule`, `RuleSet` (the `rule/3` DSL; `use AssertCommit.RuleSet`), `Rules.*` (built-in sets), `Config` (`.assert_commit.exs` or `default/0`), `Runner` (`Report`/`Result`, `run_range/3`), `Formatter` (text/JSON; every rendering starts by naming the source), `CLI` (argument parsing, source selection, CI warning, exit status), `Mix.Tasks.AssertCommit`.
+- `AssertCommit.Rule`, `RuleSet` (the `rule/3` DSL; `use AssertCommit.RuleSet, requires: [...]`; `applicable?/2`), `Rules.*` (built-in sets), `Config` (`.assert_commit.exs`, or `default/1` which enables sets whose `requires/0` hold — VM-loaded module, declared/locked dep, or file present — and records `detection`), `Runner` (`Report`/`Result`, `run_range/3`), `Formatter` (text/JSON; every rendering starts by naming the source), `CLI` (argument parsing, source selection, CI warning, exit status), `Mix.Tasks.AssertCommit`.
 
-Design rules: after-tree invariants triggered by diff predicates, not diff-only coupling. Explicit sources; `:auto` only at the CLI, and always announced. Rules with nothing configured return `{:skip, reason}` rather than passing silently.
+Design rules: after-tree invariants triggered by diff predicates, not diff-only coupling. Explicit sources; `:auto` only at the CLI, and always announced. Rules with nothing configured return `{:skip, reason}` rather than passing silently. Defaults must have a low false-positive rate on an ordinary project, and anything detection-dependent is announced in the output.
 
 ## Fixtures
 
@@ -49,6 +49,8 @@ mix dialyzer                  # static analysis
 - `Code.string_to_quoted/2` warns on `mix.lock`'s quoted keywords; `MixFile` passes `emit_warnings: false`.
 - The formatter parenthesises `rule`/`assert_pass`/`assert_fail` unless `.formatter.exs` lists them in `locals_without_parens`, and does not remove parens it already added.
 - `setup_all` does not get a `tmp_dir`; use `Fixtures.repo/1`.
+- Dialyzer rejects `MapSet.t()` inside a map type in a `@spec` (opaque subterm); `RuleSet.env()` uses plain lists.
+- Map key order is not stable across OTP versions; `AssertCommit.JSON` sorts keys.
 
 ## Commit message style
 

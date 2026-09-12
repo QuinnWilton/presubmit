@@ -64,8 +64,27 @@ error.
 
 ## Configuration
 
-`.assert_commit.exs` evaluates to a list of rule sets. Without one, every
-built-in set runs with its defaults.
+Without a `.assert_commit.exs`, the defaults adapt to the project and the
+output says what was decided:
+
+```
+No .assert_commit.exs; using built-in defaults.
+  enabled: Elixir, Phoenix (phoenix is a dependency), Ecto (Ecto.Schema loaded), OTP, ExUnit, Mix, Message, Hygiene, Shape
+  not enabled: Changelog (no CHANGELOG.md)
+```
+
+`Rules.Phoenix` and `Rules.Ecto` are enabled when the library is loaded in
+the VM (the task puts the project's deps on the code path) or is a declared
+or locked dependency of the examined tree — so `--rev` on an old commit from
+before Phoenix was added gets no Phoenix rules. `Rules.Changelog` needs a
+`CHANGELOG.md`. The always-on defaults are the ones that apply to any Elixir
+project: `Elixir`, `Hygiene`, `Mix`, `OTP`, `Shape`, the message basics
+(`no_fixup`, `subject_length`), and `ExUnit`'s `behaviour_changes_tested`
+(`tested` — a test module per added module — is opt-in). A rule set declares
+its own condition with `use AssertCommit.RuleSet, requires: [{:phoenix, Phoenix.Router}]`.
+
+`.assert_commit.exs` evaluates to a list of rule sets and replaces the
+defaults entirely:
 
 ```elixir
 [
