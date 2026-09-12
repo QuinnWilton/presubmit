@@ -72,6 +72,60 @@ defmodule AssertCommit.CLITest do
     assert AssertCommit.Git.run!(repo, ["diff", "--cached", "--name-only"]) == ""
   end
 
+  test "--message-file attaches a message to the staged change set, as a commit-msg hook would",
+       %{repo: repo} do
+    File.write!(
+      Path.join(repo, "lib/demo/hooked.ex"),
+      "defmodule Demo.Hooked do\n  @moduledoc false\n  @spec x() :: 1\n  def x, do: 1\nend\n"
+    )
+
+    on_exit(fn ->
+      AssertCommit.Git.run!(repo, ["reset", "-q", "--", "lib/demo/hooked.ex"]) &&
+        File.rm(Path.join(repo, "lib/demo/hooked.ex"))
+    end)
+
+    AssertCommit.Git.run!(repo, ["add", "lib/demo/hooked.ex"])
+
+    message =
+      Path.join(System.tmp_dir!(), "assert_commit_msg_#{System.unique_integer([:positive])}")
+
+    File.write!(message, "fixup! wip\n\n# Please enter the commit message\n")
+    on_exit(fn -> File.rm(message) end)
+
+    {1, out} = run(["--repo", repo, "--staged", "--message-file", message, "--no-color"])
+    assert out =~ ~r/^Examining staged index \(1 file differs from HEAD\) — fixup! wip\n/m
+    assert out =~ "✗ no fixup!/squash!/amend! commits"
+    refute out =~ "skipped: needs a commit message"
+
+    {0, out} =
+      run([
+        "--repo",
+        repo,
+        "--staged",
+        "--message",
+        "Add hooked",
+        "--no-color",
+        "--config",
+        write_config(repo, "[AssertCommit.Rules.Message]")
+      ])
+
+    assert out =~ "— Add hooked\n"
+    assert out =~ "✓ no fixup!/squash!/amend! commits"
+  end
+
+  test "a message cannot be attached to a commit, and only one message option is accepted", %{
+    repo: repo
+  } do
+    assert {2, "error: --message only applies to --staged or --worktree" <> _} =
+             run(["--repo", repo, "--head", "--message", "x"])
+
+    assert {2, "error: pass either --message or --message-file" <> _} =
+             run(["--repo", repo, "--staged", "--message", "x", "--message-file", "y"])
+
+    assert {2, "error: cannot read --message-file /nope: " <> _} =
+             run(["--repo", repo, "--staged", "--message-file", "/nope"])
+  end
+
   test "--range reports every commit in the range", %{repo: repo} do
     {1, out} = run(["--repo", repo, "--range", "main..scenario/migration_rebased", "--no-color"])
     assert out =~ ~r/^Examining [0-9a-f]{7} Create posts\n/m

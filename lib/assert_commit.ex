@@ -14,7 +14,7 @@ defmodule AssertCommit do
       report = AssertCommit.Runner.run(commit, AssertCommit.Config.load!().rules)
   """
 
-  alias AssertCommit.{Commit, Git}
+  alias AssertCommit.{Commit, Git, Message}
 
   @type source :: :auto | :head | :staged | :worktree | {:rev, String.t()}
 
@@ -27,14 +27,22 @@ defmodule AssertCommit do
   - `:source` — `:head` (default), `{:rev, rev}`, `:staged`, `:worktree`, or
     `:auto`, which is `:worktree` when anything on disk differs from `HEAD`
     and `:head` otherwise.
+  - `:message` — raw message text to attach to a `:staged` or `:worktree`
+    change set (from a `commit-msg` hook, say), cleaned as git would.
   """
   @spec load(keyword()) :: Commit.t()
   def load(opts \\ []) do
-    case resolve_source(opts) do
-      :head -> Commit.head(opts)
-      {:rev, rev} -> Commit.rev(rev, opts)
-      :staged -> Commit.staged(opts)
-      :worktree -> Commit.worktree(opts)
+    commit =
+      case resolve_source(opts) do
+        :head -> Commit.head(opts)
+        {:rev, rev} -> Commit.rev(rev, opts)
+        :staged -> Commit.staged(opts)
+        :worktree -> Commit.worktree(opts)
+      end
+
+    case Keyword.get(opts, :message) do
+      nil -> commit
+      text when is_binary(text) -> %{commit | message: text |> Message.clean() |> Message.parse()}
     end
   end
 

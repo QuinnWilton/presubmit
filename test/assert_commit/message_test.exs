@@ -52,6 +52,30 @@ defmodule AssertCommit.MessageTest do
     end
   end
 
+  describe "clean/1" do
+    test "drops comment lines and everything after a scissors line, then trims" do
+      raw = """
+      [x] subject
+
+      Body.
+      # Please enter the commit message for your changes. Lines starting
+      # with '#' will be ignored, and an empty message aborts the commit.
+      #
+      # On branch main
+      Trailer: v
+      # ------------------------ >8 ------------------------
+      diff --git a/x b/x
+      """
+
+      assert Message.clean(raw) == "[x] subject\n\nBody.\nTrailer: v"
+      assert Message.parse(Message.clean(raw)).trailers == []
+    end
+
+    test "leaves an already clean message alone" do
+      assert Message.clean("S\n\nK: v\n") == "S\n\nK: v"
+    end
+  end
+
   describe "properties" do
     property "trailers round-trip through a rendered message" do
       key = string(?a..?z, min_length: 1) |> map(&String.capitalize/1)

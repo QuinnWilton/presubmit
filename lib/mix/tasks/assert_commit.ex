@@ -9,6 +9,7 @@ defmodule Mix.Tasks.AssertCommit do
       mix assert_commit --head              # the commit at HEAD
       mix assert_commit --rev abc123
       mix assert_commit --staged            # from a pre-commit hook
+      mix assert_commit --staged --message-file "$1"   # from a commit-msg hook: changes and message together
       mix assert_commit --worktree          # from an editor or agent loop
       mix assert_commit --range main..HEAD  # every commit on a branch
       mix assert_commit --format json

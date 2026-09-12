@@ -72,10 +72,18 @@ defmodule AssertCommit.RunnerTest do
       assert Formatter.describe(commit) ==
                "#{String.slice(commit.sha, 0, 7)} Move Shop.Cart under Shop.Checkout"
 
-      assert Formatter.describe(%{commit | source: :worktree, changes: [hd(commit.changes)]}) ==
+      assert Formatter.describe(%{
+               commit
+               | source: :worktree,
+                 changes: [hd(commit.changes)],
+                 message: nil
+             }) ==
                "working tree (1 file differs from HEAD)"
 
-      assert Formatter.describe(%{commit | source: :staged}) ==
+      assert Formatter.describe(%{commit | source: :worktree, changes: [hd(commit.changes)]}) ==
+               "working tree (1 file differs from HEAD) — Move Shop.Cart under Shop.Checkout"
+
+      assert Formatter.describe(%{commit | source: :staged, message: nil}) ==
                "staged index (2 files differ from HEAD)"
     end
 

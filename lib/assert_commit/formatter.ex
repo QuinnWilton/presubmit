@@ -47,8 +47,11 @@ defmodule AssertCommit.Formatter do
 
   @doc "One line describing what a report examined."
   @spec describe(Commit.t()) :: String.t()
-  def describe(%Commit{source: :worktree} = c), do: "working tree (#{differ(c)} from HEAD)"
-  def describe(%Commit{source: :staged} = c), do: "staged index (#{differ(c)} from HEAD)"
+  def describe(%Commit{source: :worktree} = c),
+    do: "working tree (#{differ(c)} from HEAD)#{with_subject(c)}"
+
+  def describe(%Commit{source: :staged} = c),
+    do: "staged index (#{differ(c)} from HEAD)#{with_subject(c)}"
 
   def describe(%Commit{source: :synthetic}), do: "synthetic change set"
   def describe(%Commit{sha: sha} = c), do: "#{short(sha)} #{Query.subject(c)}"
@@ -124,6 +127,9 @@ defmodule AssertCommit.Formatter do
 
   defp paint(text, _color, false), do: text
   defp paint(text, color, true), do: IO.ANSI.format([color, text]) |> IO.iodata_to_binary()
+
+  defp with_subject(%Commit{message: nil}), do: ""
+  defp with_subject(%Commit{message: %{subject: subject}}), do: " — #{subject}"
 
   defp differ(%Commit{changes: [_]}), do: "1 file differs"
   defp differ(%Commit{changes: changes}), do: "#{length(changes)} files differ"

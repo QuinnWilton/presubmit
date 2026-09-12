@@ -18,6 +18,12 @@ defmodule AssertCommitTest do
                AssertCommit.load(repo: repo, source: :auto)
     end
 
+    test "message: attaches a cleaned message to a message-less change set", %{repo: repo} do
+      commit = AssertCommit.load(repo: repo, source: :staged, message: "[x] hi\n# comment\n")
+      assert commit.message.subject == "[x] hi"
+      assert AssertCommit.load(repo: repo, source: :staged).message == nil
+    end
+
     test "explicit sources pass through" do
       assert AssertCommit.resolve_source(source: :staged) == :staged
       assert AssertCommit.resolve_source(source: {:rev, "abc"}) == {:rev, "abc"}

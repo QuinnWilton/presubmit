@@ -53,6 +53,24 @@ defmodule AssertCommit.Message do
   end
 
   @doc """
+  Applies git's default message cleanup to text from a `commit-msg` hook or
+  editor: comment lines are dropped, everything from a scissors line on is
+  dropped, and surrounding whitespace is trimmed.
+  """
+  @spec clean(String.t()) :: String.t()
+  def clean(text) when is_binary(text) do
+    text
+    |> String.replace("\r\n", "\n")
+    |> String.split("\n")
+    |> Enum.take_while(
+      &(not String.starts_with?(&1, "# ------------------------ >8 ------------------------"))
+    )
+    |> Enum.reject(&String.starts_with?(&1, "#"))
+    |> Enum.join("\n")
+    |> String.trim()
+  end
+
+  @doc """
   Every value for the trailer `key`, compared case-insensitively.
   """
   @spec trailer_values(t(), String.t()) :: [String.t()]

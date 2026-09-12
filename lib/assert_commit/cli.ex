@@ -18,7 +18,9 @@ defmodule AssertCommit.CLI do
     config: :string,
     format: :string,
     color: :boolean,
-    list: :boolean
+    list: :boolean,
+    message: :string,
+    message_file: :string
   ]
 
   @type result :: {exit_status :: 0 | 1 | 2, output :: iodata()}
@@ -63,7 +65,7 @@ defmodule AssertCommit.CLI do
           {config, Runner.run_range(repo, range, config.rules), []}
 
         source ->
-          commit = AssertCommit.load(repo: repo, source: source)
+          commit = AssertCommit.load(repo: repo, source: source, message: message(opts, source))
           config = load_config(opts, commit)
           {config, [Runner.run(commit, config.rules)], ci_note(source, commit, env)}
       end
@@ -103,6 +105,36 @@ defmodule AssertCommit.CLI do
 
   defp set_name(module),
     do: module |> inspect() |> String.replace_prefix("AssertCommit.Rules.", "")
+
+  # A message may only be attached where there is none yet; commits already have theirs.
+  defp message(opts, source) do
+    text =
+      case {Keyword.get(opts, :message), Keyword.get(opts, :message_file)} do
+        {nil, nil} -> nil
+        {text, nil} -> text
+        {nil, path} -> read_message_file(path)
+        {_, _} -> raise Config.Error, message: "pass either --message or --message-file, not both"
+      end
+
+    if text != nil and source not in [:staged, :worktree] do
+      raise Config.Error,
+        message:
+          "--message only applies to --staged or --worktree; a commit already has its message"
+    end
+
+    text
+  end
+
+  defp read_message_file(path) do
+    case File.read(path) do
+      {:ok, text} ->
+        text
+
+      {:error, reason} ->
+        raise Config.Error,
+          message: "cannot read --message-file #{path}: #{:file.format_error(reason)}"
+    end
+  end
 
   defp range_end(range), do: range |> String.split("..") |> List.last()
 
@@ -201,6 +233,8 @@ defmodule AssertCommit.CLI do
         --range A..B      every non-merge commit in a rev-list range
 
       Options:
+        --message-file P  attach the message in file P to a --staged/--worktree change set (commit-msg hook)
+        --message TEXT    attach TEXT as the message
         --repo PATH       repository to examine (default: current directory)
         --config PATH     rule configuration (default: .assert_commit.exs, or built-in defaults)
         --format FORMAT   text (default) or json
