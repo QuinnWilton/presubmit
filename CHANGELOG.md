@@ -5,6 +5,7 @@
 ### Added
 
 - `mix assert_commit`: runs the rule sets in `.assert_commit.exs` (or every built-in set by default) against a change set and reports each rule as passed, failed, or skipped. Sources: `--head`, `--rev`, `--staged`, `--worktree`, `--range A..B`; the default is the working tree when anything differs from `HEAD`, else `HEAD`, and the first line of output always names what was examined. `--format json`, `--list`, and a warning when a dirty working tree is examined under `CI`.
+- `Query.behaviour_changed?/2` and `function_changes/2` take a path pattern; `behaviour_changes_tested` is scoped to `lib/`, so a migration or script no longer demands a test change.
 - Rule sets: `AssertCommit.RuleSet` (`use` + `rule/3`) and built-in `Rules.Elixir`, `Rules.Phoenix`, `Rules.Ecto`, `Rules.OTP`, `Rules.ExUnit`, `Rules.Mix`, `Rules.Changelog`, `Rules.Message`, `Rules.Hygiene`, `Rules.Shape`, with `only:`/`except:` and per-set options.
 - Change sources: `Commit.worktree/1` (via a temporary index, never touching the real one) and `AssertCommit.load/1` with `source: :auto`.
 - Structural source layer: `AssertCommit.Source.Facts` (per-file modules, functions, attributes, struct fields, alias-resolved references), `AssertCommit.Source.Diff` (modules and functions added/removed/renamed/changed, `behaviour_changed?/1`), `AssertCommit.Source.Index`.

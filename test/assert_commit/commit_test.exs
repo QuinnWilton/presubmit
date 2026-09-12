@@ -79,6 +79,22 @@ defmodule AssertCommit.CommitTest do
     end
   end
 
+  describe "Query.behaviour_changed?/2" do
+    test "is scoped by path, so a migration under priv/ is not a lib/ behaviour change" do
+      commit =
+        Commit.new(
+          after: %{
+            "priv/repo/migrations/1_x.exs" => "defmodule X do\n  def change, do: :ok\nend\n"
+          }
+        )
+
+      assert behaviour_changed?(commit)
+      refute behaviour_changed?(commit, ~r{^lib/})
+      assert function_changes(commit, ~r{^lib/}) == %{added: [], removed: [], body_changed: []}
+      AssertCommit.Assertions.ExUnit.assert_behaviour_changes_tested(commit)
+    end
+  end
+
   describe "Query.formatting_only?/1" do
     test "true for a whitespace-only edit" do
       assert formatting_only?(Commit.new(before: %{"a" => "x=1\n"}, after: %{"a" => "x = 1\n"}))

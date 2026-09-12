@@ -193,13 +193,36 @@ defmodule AssertCommit.Query do
   def public_api_changed?(commit), do: commit |> elixir_diff() |> Diff.public_api_changed?()
 
   @doc """
-  Whether any function's body changed or any function was added or removed.
+  Whether any function's body changed or any function was added or removed,
+  in files matching `pattern`.
 
   Docs, specs, attributes, and formatting do not count, which makes this the
   right trigger for "code changes need test changes".
   """
-  @spec behaviour_changed?(Commit.t()) :: boolean()
-  def behaviour_changed?(commit), do: commit |> elixir_diff() |> Diff.behaviour_changed?()
+  @spec behaviour_changed?(Commit.t(), pattern()) :: boolean()
+  def behaviour_changed?(commit, pattern \\ nil) do
+    %{added: added, removed: removed, body_changed: body_changed} =
+      function_changes(commit, pattern)
+
+    added != [] or removed != [] or body_changed != []
+  end
+
+  @doc "Functions added, removed, and body-changed in files matching `pattern`."
+  @spec function_changes(Commit.t(), pattern()) :: %{
+          added: [Function.t()],
+          removed: [Function.t()],
+          body_changed: [{Function.t(), Function.t()}]
+        }
+  def function_changes(commit, pattern \\ nil) do
+    %{functions: f} = elixir_diff(commit)
+
+    %{
+      added: Enum.filter(f.added, &Pattern.matches?(&1.path, pattern)),
+      removed: Enum.filter(f.removed, &Pattern.matches?(&1.path, pattern)),
+      body_changed:
+        Enum.filter(f.body_changed, fn {_, new} -> Pattern.matches?(new.path, pattern) end)
+    }
+  end
 
   @doc "Elixir files the commit could not parse, with the parser's reason."
   @spec unparsed(Commit.t()) :: [{String.t(), term()}]

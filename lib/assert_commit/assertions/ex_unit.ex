@@ -44,16 +44,14 @@ defmodule AssertCommit.Assertions.ExUnit do
   """
   @spec assert_behaviour_changes_tested(Commit.t()) :: :ok
   def assert_behaviour_changes_tested(%Commit{} = commit) do
-    if Query.behaviour_changed?(commit) and not Query.touches?(commit, ~r{^test/}) do
-      diff = Query.elixir_diff(commit)
+    if Query.behaviour_changed?(commit, ~r{^lib/}) and not Query.touches?(commit, ~r{^test/}) do
+      %{added: added, removed: removed, body_changed: body_changed} =
+        Query.function_changes(commit, ~r{^lib/})
 
       changed =
-        Enum.map(diff.functions.added, &"#{inspect(&1.module)}.#{&1.name}/#{&1.arity} (added)") ++
-          Enum.map(
-            diff.functions.removed,
-            &"#{inspect(&1.module)}.#{&1.name}/#{&1.arity} (removed)"
-          ) ++
-          Enum.map(diff.functions.body_changed, fn {_, f} ->
+        Enum.map(added, &"#{inspect(&1.module)}.#{&1.name}/#{&1.arity} (added)") ++
+          Enum.map(removed, &"#{inspect(&1.module)}.#{&1.name}/#{&1.arity} (removed)") ++
+          Enum.map(body_changed, fn {_, f} ->
             "#{inspect(f.module)}.#{f.name}/#{f.arity} (body changed)"
           end)
 
