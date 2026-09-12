@@ -28,7 +28,7 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      # HEAD is asserted on by the dogfood test and `mix assert_commit --head`, which need its parent.
+      # The dogfood test asserts on HEAD, which needs HEAD's parent to be present.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -47,7 +47,33 @@ jobs:
       - run: mix deps.get
       - run: mix compile --warnings-as-errors
       - run: mix test
-      - run: mix assert_commit --head
+
+  commits:
+    name: Commit policy
+    runs-on: ubuntu-latest
+    steps:
+      # Every commit in a pull request is checked individually, so the whole history is needed.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: erlef/setup-beam@v1
+        id: setup-beam
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: commits-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: commits-${{ runner.os }}-${{ steps.setup-beam.outputs.otp-version }}-${{ steps.setup-beam.outputs.elixir-version }}-
+      - run: mix deps.get
+      # On pull_request events HEAD is a synthetic merge commit; check the PR's own commits instead.
+      - if: github.event_name == 'pull_request'
+        run: mix assert_commit --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+      - if: github.event_name == 'push'
+        run: mix assert_commit --head
 
   credo:
     name: Credo
