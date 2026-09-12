@@ -33,7 +33,7 @@ defmodule AssertCommit.CLI do
         {2, usage("unknown arguments: #{Enum.map_join(invalid ++ rest, " ", &format_arg/1)}")}
 
       Keyword.get(opts, :list) ->
-        {0, list(load_config(opts))}
+        {0, list(load_config(opts, list_commit(opts)))}
 
       true ->
         run(opts, env)
@@ -50,24 +50,61 @@ defmodule AssertCommit.CLI do
 
   defp run(opts, env) do
     repo = opts |> Keyword.get(:repo, File.cwd!()) |> Path.expand()
-    config = load_config(opts)
     format = format(Keyword.get(opts, :format, "text"))
     color? = Keyword.get(opts, :color, format == :text and IO.ANSI.enabled?())
 
-    {reports, notes} =
+    {config, reports, notes} =
       case source(opts, repo) do
         {:range, range} ->
-          {Runner.run_range(repo, range, config.rules), []}
+          # Detection reads the tree at the end of the range.
+          config =
+            load_config(opts, AssertCommit.load(repo: repo, source: {:rev, range_end(range)}))
+
+          {config, Runner.run_range(repo, range, config.rules), []}
 
         source ->
           commit = AssertCommit.load(repo: repo, source: source)
-          {[Runner.run(commit, config.rules)], ci_note(source, commit, env)}
+          config = load_config(opts, commit)
+          {config, [Runner.run(commit, config.rules)], ci_note(source, commit, env)}
       end
 
     status = if Enum.all?(reports, &(Report.status(&1) == :pass)), do: 0, else: 1
-    output = [Enum.map(notes, &(&1 <> "\n")), Formatter.render(reports, format, color: color?)]
+
+    output =
+      case format do
+        :text ->
+          [
+            Enum.map(notes ++ config_notes(config), &(&1 <> "\n")),
+            Formatter.render(reports, :text, color: color?)
+          ]
+
+        :json ->
+          Formatter.render(reports, :json, config: config, notes: notes)
+      end
+
     {status, output}
   end
+
+  # With no configuration file the defaults depend on detection, so say what was decided.
+  defp config_notes(%Config{path: nil, detection: detection}) do
+    enabled = for {m, :enabled, reasons} <- detection, do: "#{set_name(m)}#{because(reasons)}"
+
+    disabled =
+      for {m, :disabled, reasons} <- detection, do: "#{set_name(m)} (#{Enum.join(reasons, "; ")})"
+
+    ["No .assert_commit.exs; using built-in defaults.", "  enabled: #{Enum.join(enabled, ", ")}"] ++
+      if(disabled == [], do: [], else: ["  not enabled: #{Enum.join(disabled, ", ")}"]) ++ [""]
+  end
+
+  defp config_notes(%Config{}), do: []
+
+  defp because([]), do: ""
+  defp because(reasons), do: " (#{Enum.join(reasons, "; ")})"
+
+  defp set_name(module),
+    do: module |> inspect() |> String.replace_prefix("AssertCommit.Rules.", "")
+
+  defp range_end(range), do: range |> String.split("..") |> List.last()
 
   defp source(opts, repo) do
     explicit =
@@ -111,20 +148,32 @@ defmodule AssertCommit.CLI do
     end
   end
 
-  defp load_config(opts) do
+  defp load_config(opts, commit) do
     Config.load!(
       repo: opts |> Keyword.get(:repo, File.cwd!()) |> Path.expand(),
-      config: Keyword.get(opts, :config)
+      config: Keyword.get(opts, :config),
+      commit: commit
     )
   end
 
-  defp list(%Config{sets: sets}) do
-    Enum.map_join(sets, "\n\n", fn spec ->
-      {module, set_opts} = if is_atom(spec), do: {spec, []}, else: spec
-      rules = AssertCommit.RuleSet.expand(spec)
-      header = "#{inspect(module)}#{if set_opts == [], do: "", else: " " <> inspect(set_opts)}"
-      Enum.join([header | Enum.map(rules, &"  #{&1.id} — #{&1.name}")], "\n")
-    end) <> "\n"
+  # --list needs a tree for detection; HEAD is the natural one, and an unborn repo just has none.
+  defp list_commit(opts) do
+    AssertCommit.load(
+      repo: opts |> Keyword.get(:repo, File.cwd!()) |> Path.expand(),
+      source: :head
+    )
+  rescue
+    _ -> nil
+  end
+
+  defp list(%Config{sets: sets} = config) do
+    Enum.join(config_notes(config), "\n") <>
+      Enum.map_join(sets, "\n\n", fn spec ->
+        {module, set_opts} = if is_atom(spec), do: {spec, []}, else: spec
+        rules = AssertCommit.RuleSet.expand(spec)
+        header = "#{inspect(module)}#{if set_opts == [], do: "", else: " " <> inspect(set_opts)}"
+        Enum.join([header | Enum.map(rules, &"  #{&1.id} — #{&1.name}")], "\n")
+      end) <> "\n"
   end
 
   defp format("text"), do: :text

@@ -1,7 +1,7 @@
 defmodule AssertCommitTest do
   use ExUnit.Case, async: true
 
-  alias AssertCommit.{Commit, FixtureRepo, Fixtures, Git}
+  alias AssertCommit.{Commit, Fixtures}
 
   setup_all do: %{repo: Fixtures.repo("shape")}
 

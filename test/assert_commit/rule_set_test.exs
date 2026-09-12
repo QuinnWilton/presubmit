@@ -81,6 +81,39 @@ defmodule AssertCommit.RuleSetTest do
     assert {:error, %ArgumentError{message: "boom"}, [_ | _]} = run.(:crashes, [])
   end
 
+  describe "requires/0 and applicable?/2" do
+    defmodule NeedsPhoenix do
+      use AssertCommit.RuleSet, requires: [{:phoenix, Phoenix.Router}, {:file, "CHANGELOG.md"}]
+      rule :x, "x", fn _ -> :ok end
+    end
+
+    defp env(loaded, deps, files) do
+      %{loaded?: &(&1 in loaded), deps: deps, file?: &(&1 in files)}
+    end
+
+    test "sets require nothing unless they say so" do
+      assert Sample.requires() == []
+      assert RuleSet.applicable?(Sample, env([], [], [])) == {:ok, []}
+    end
+
+    test "an app requirement is met by a loaded module or a declared dependency" do
+      assert {:ok, ["Phoenix.Router loaded", "CHANGELOG.md present"]} =
+               RuleSet.applicable?(NeedsPhoenix, env([Phoenix.Router], [], ["CHANGELOG.md"]))
+
+      assert {:ok, ["phoenix is a dependency", _]} =
+               RuleSet.applicable?(NeedsPhoenix, env([], [:phoenix], ["CHANGELOG.md"]))
+    end
+
+    test "missing requirements are reported with reasons" do
+      assert {:missing, reasons} = RuleSet.applicable?(NeedsPhoenix, env([], [], []))
+
+      assert reasons == [
+               "phoenix not a dependency and Phoenix.Router not loaded",
+               "no CHANGELOG.md"
+             ]
+    end
+  end
+
   test "message rules skip on change sets without a message" do
     rule = AssertCommit.Rules.Message |> then(&RuleSet.expand({&1, only: [:no_fixup]})) |> hd()
     assert {:skip, reason} = Rule.run(rule, Commit.new(after: %{}))

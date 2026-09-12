@@ -18,6 +18,11 @@ defmodule Mix.Tasks.AssertCommit do
   failed, and 2 on a usage or configuration error. The first line of output
   always names the source examined.
 
+  Without a `.assert_commit.exs`, the defaults enable `Rules.Phoenix` and
+  `Rules.Ecto` when those libraries are loaded or declared in `mix.exs`, and
+  `Rules.Changelog` when a `CHANGELOG.md` exists; the output says what was
+  enabled and why.
+
   The project is not compiled: rules only parse source. Under CI, examining
   a dirty working tree prints a warning, since that usually means a build
   step modified the checkout; pass `--head` or `--rev` to gate the commit.
@@ -27,6 +32,14 @@ defmodule Mix.Tasks.AssertCommit do
 
   @impl true
   def run(argv) do
+    # Put the project's dependencies on the code path so default detection can see
+    # what is loaded (Phoenix, Ecto). The project itself is not compiled.
+    try do
+      Mix.Task.run("loadpaths", ["--no-compile"])
+    rescue
+      _ -> :ok
+    end
+
     {status, output} = AssertCommit.CLI.main(argv)
     IO.write(output)
     if status != 0, do: exit({:shutdown, status})

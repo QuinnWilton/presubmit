@@ -12,12 +12,10 @@ defmodule AssertCommit.JSON do
   def encode(s) when is_binary(s), do: [?", escape(s), ?"]
   def encode(list) when is_list(list), do: [?[, Enum.map_intersperse(list, ?,, &encode/1), ?]]
 
+  # Keys are sorted so output is stable across map implementations.
   def encode(%{} = map) do
-    [
-      ?{,
-      Enum.map_intersperse(map, ?,, fn {k, v} -> [encode(to_string(k)), ?:, encode(v)] end),
-      ?}
-    ]
+    entries = map |> Enum.map(fn {k, v} -> {to_string(k), v} end) |> Enum.sort_by(&elem(&1, 0))
+    [?{, Enum.map_intersperse(entries, ?,, fn {k, v} -> [encode(k), ?:, encode(v)] end), ?}]
   end
 
   def encode(other), do: encode(inspect(other))

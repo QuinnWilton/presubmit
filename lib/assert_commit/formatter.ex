@@ -21,8 +21,28 @@ defmodule AssertCommit.Formatter do
     Enum.map_intersperse(reports, "\n", &text(&1, color?))
   end
 
-  def render(reports, :json, _opts) do
-    JSON.encode(%{reports: Enum.map(reports, &json/1)})
+  def render(reports, :json, opts) do
+    config =
+      case Keyword.get(opts, :config) do
+        %AssertCommit.Config{path: path, detection: detection} ->
+          %{
+            path: path,
+            defaults: is_nil(path),
+            detection:
+              Enum.map(detection, fn {m, status, reasons} ->
+                %{set: inspect(m), status: status, reasons: reasons}
+              end)
+          }
+
+        nil ->
+          nil
+      end
+
+    JSON.encode(%{
+      config: config,
+      notes: Keyword.get(opts, :notes, []),
+      reports: Enum.map(reports, &json/1)
+    })
   end
 
   @doc "One line describing what a report examined."

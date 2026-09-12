@@ -1,6 +1,6 @@
 defmodule AssertCommit.Rules.Changelog do
   @moduledoc "Changelog: API changes and releases are recorded. Option `path:` (default `CHANGELOG.md`)."
-  use AssertCommit.RuleSet
+  use AssertCommit.RuleSet, requires: [{:file, "CHANGELOG.md"}]
 
   import AssertCommit.Assertions.Changelog
 

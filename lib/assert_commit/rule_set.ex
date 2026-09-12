@@ -36,8 +36,29 @@ defmodule AssertCommit.RuleSet do
   @doc "A one-line description of the set, for `mix assert_commit --list`."
   @callback description() :: String.t()
 
+  @doc """
+  What must be present for the set to be enabled by default. `{app, module}`
+  is satisfied when `module` is loaded in the VM or `app` (any of a list) is
+  declared in the examined tree's `mix.exs` or present in its `mix.lock`;
+  `{:file, path}` when the tree has that file.
+  """
+  @callback requires() :: [requirement()]
+
   @typedoc "A rule set as it appears in configuration."
   @type spec :: module() | {module(), keyword()}
+
+  @typedoc "`{app_or_apps, module}`: any of the apps declared or locked, or the module loaded."
+  @type requirement :: {atom() | [atom()], module()} | {:file, Path.t()}
+
+  @typedoc """
+  What `applicable?/2` consults: which modules are loaded, which apps the
+  examined tree depends on, and which files it contains.
+  """
+  @type env :: %{
+          loaded?: (module() -> boolean()),
+          deps: [atom()],
+          file?: (Path.t() -> boolean())
+        }
 
   defmacro __using__(opts) do
     quote do
@@ -46,6 +67,44 @@ defmodule AssertCommit.RuleSet do
       @assert_commit_description unquote(Keyword.get(opts, :description))
       Module.register_attribute(__MODULE__, :assert_commit_rules, accumulate: true)
       import AssertCommit.RuleSet, only: [rule: 3]
+
+      @impl true
+      def requires, do: unquote(Keyword.get(opts, :requires, []))
+
+      defoverridable requires: 0
+    end
+  end
+
+  @doc """
+  Whether every requirement of `module` is satisfied under `env`, with the
+  reasons: `{:ok, reasons}` or `{:missing, reasons}`.
+  """
+  @spec applicable?(module(), env()) :: {:ok, [String.t()]} | {:missing, [String.t()]}
+  def applicable?(module, env) do
+    outcomes = Enum.map(module.requires(), &check_requirement(&1, env))
+
+    case Enum.split_with(outcomes, &match?({:ok, _}, &1)) do
+      {oks, []} -> {:ok, Enum.map(oks, &elem(&1, 1))}
+      {_, missing} -> {:missing, Enum.map(missing, &elem(&1, 1))}
+    end
+  end
+
+  defp check_requirement({:file, path}, env) do
+    if env.file?.(path), do: {:ok, "#{path} present"}, else: {:missing, "no #{path}"}
+  end
+
+  defp check_requirement({apps, module}, env) when is_atom(module) do
+    apps = List.wrap(apps)
+
+    cond do
+      env.loaded?.(module) ->
+        {:ok, "#{inspect(module)} loaded"}
+
+      app = Enum.find(apps, &(&1 in env.deps)) ->
+        {:ok, "#{app} is a dependency"}
+
+      true ->
+        {:missing, "#{Enum.join(apps, "/")} not a dependency and #{inspect(module)} not loaded"}
     end
   end
 

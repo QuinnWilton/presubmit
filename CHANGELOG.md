@@ -5,6 +5,7 @@
 ### Added
 
 - `mix assert_commit`: runs the rule sets in `.assert_commit.exs` (or every built-in set by default) against a change set and reports each rule as passed, failed, or skipped. Sources: `--head`, `--rev`, `--staged`, `--worktree`, `--range A..B`; the default is the working tree when anything differs from `HEAD`, else `HEAD`, and the first line of output always names what was examined. `--format json`, `--list`, and a warning when a dirty working tree is examined under `CI`.
+- Detection-aware defaults: rule sets declare `requires:` (`use AssertCommit.RuleSet, requires: [{:phoenix, Phoenix.Router}]`); without a `.assert_commit.exs`, `Config.default/1` enables `Rules.Phoenix`/`Rules.Ecto` when the library is loaded in the VM or is a declared or locked dependency of the examined tree, and `Rules.Changelog` when `CHANGELOG.md` exists. The output names what was enabled and why (`RuleSet.applicable?/2`, `Config.env/1`, JSON `config`).
 - `Query.behaviour_changed?/2` and `function_changes/2` take a path pattern; `behaviour_changes_tested` is scoped to `lib/`, so a migration or script no longer demands a test change.
 - Rule sets: `AssertCommit.RuleSet` (`use` + `rule/3`) and built-in `Rules.Elixir`, `Rules.Phoenix`, `Rules.Ecto`, `Rules.OTP`, `Rules.ExUnit`, `Rules.Mix`, `Rules.Changelog`, `Rules.Message`, `Rules.Hygiene`, `Rules.Shape`, with `only:`/`except:` and per-set options.
 - Change sources: `Commit.worktree/1` (via a temporary index, never touching the real one) and `AssertCommit.load/1` with `source: :auto`.

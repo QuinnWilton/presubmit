@@ -1,6 +1,6 @@
 defmodule AssertCommit.Rules.Ecto do
   @moduledoc "Ecto: migrations are ordered, immutable, safe, reversible, and back every schema change."
-  use AssertCommit.RuleSet
+  use AssertCommit.RuleSet, requires: [{[:ecto, :ecto_sql], Ecto.Schema}]
 
   import AssertCommit.Assertions.Ecto
 

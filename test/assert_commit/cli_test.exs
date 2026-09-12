@@ -10,9 +10,21 @@ defmodule AssertCommit.CLITest do
     {status, IO.iodata_to_binary(output)}
   end
 
+  test "without a config file, the defaults are announced with their detection", %{repo: repo} do
+    {1, out} = run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--no-color"])
+    assert out =~ "No .assert_commit.exs; using built-in defaults.\n"
+
+    assert out =~
+             ~r/^  enabled: Elixir, Phoenix \(phoenix is a dependency\), Ecto \(ecto_sql is a dependency\), OTP, ExUnit, Mix, Message, Hygiene, Shape\n/m
+
+    assert out =~ ~r/^  not enabled: Changelog \(no CHANGELOG\.md\)\n/m
+    refute out =~ "public API changes are recorded"
+    refute out =~ "added modules have a test module"
+  end
+
   test "--rev examines a commit and exits 1 on failures", %{repo: repo} do
     {1, out} = run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--no-color"])
-    assert out =~ ~r/^Examining [0-9a-f]{7} Add posts index\n/
+    assert out =~ ~r/^Examining [0-9a-f]{7} Add posts index\n/m
     assert out =~ "✗ added controllers and LiveViews are routed"
     assert out =~ ~r/\d+ rules: \d+ passed, \d+ failed/
   end
@@ -34,7 +46,7 @@ defmodule AssertCommit.CLITest do
 
   test "auto picks HEAD on a clean tree and the working tree on a dirty one", %{repo: repo} do
     {_, clean} = run(["--repo", repo, "--no-color"])
-    assert clean =~ ~r/^Examining [0-9a-f]{7} Base\n/
+    assert clean =~ ~r/^Examining [0-9a-f]{7} Base\n/m
 
     File.write!(
       Path.join(repo, "lib/demo/scratch.ex"),
@@ -44,7 +56,7 @@ defmodule AssertCommit.CLITest do
     on_exit(fn -> File.rm(Path.join(repo, "lib/demo/scratch.ex")) end)
 
     {1, dirty} = run(["--repo", repo, "--no-color"])
-    assert dirty =~ "Examining working tree (1 file differs from HEAD)\n"
+    assert dirty =~ ~r/^Examining working tree \(1 file differs from HEAD\)\n/m
     assert dirty =~ "lib/demo/scratch.ex:2: def x, do: IO.inspect(1)"
     assert dirty =~ "(skipped: needs a commit message; the change set was built from :worktree)"
     refute dirty =~ "warning:"
@@ -55,20 +67,26 @@ defmodule AssertCommit.CLITest do
 
     {_, head} = run(["--repo", repo, "--head", "--no-color"], ci: true)
     refute head =~ "warning:"
-    assert head =~ ~r/^Examining [0-9a-f]{7} Base\n/
+    assert head =~ ~r/^Examining [0-9a-f]{7} Base\n/m
 
     assert AssertCommit.Git.run!(repo, ["diff", "--cached", "--name-only"]) == ""
   end
 
   test "--range reports every commit in the range", %{repo: repo} do
     {1, out} = run(["--repo", repo, "--range", "main..scenario/migration_rebased", "--no-color"])
-    assert out =~ ~r/^Examining [0-9a-f]{7} Create posts\n/
+    assert out =~ ~r/^Examining [0-9a-f]{7} Create posts\n/m
     assert out =~ "older than the newest existing migration"
   end
 
   test "--format json", %{repo: repo} do
     {1, out} = run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--format", "json"])
-    assert out =~ ~s|{"reports":[{|
+
+    assert out =~
+             ~s|{"config":{"defaults":true,"detection":[{"reasons":[],"set":"AssertCommit.Rules.Elixir","status":"enabled"}|
+
+    assert out =~
+             ~s|{"reasons":["phoenix is a dependency"],"set":"AssertCommit.Rules.Phoenix","status":"enabled"}|
+
     assert out =~ ~s|"id":"routed"|
   end
 
