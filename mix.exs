@@ -19,7 +19,7 @@ defmodule AssertCommit.MixProject do
       ],
 
       # Hex
-      description: "ExUnit assertions over the shape and contents of git commits",
+      description: "A linter for git commits, with Elixir-aware models of what changed",
       package: package(),
       docs: docs(),
       source_url: @source_url,
@@ -28,9 +28,7 @@ defmodule AssertCommit.MixProject do
   end
 
   def application do
-    [
-      extra_applications: [:logger]
-    ]
+    [extra_applications: []]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -55,9 +53,39 @@ defmodule AssertCommit.MixProject do
 
   defp docs do
     [
-      main: "AssertCommit",
+      main: "readme",
+      extras: ["README.md", "CHANGELOG.md"],
       source_ref: "v#{@version}",
-      source_url: @source_url
+      source_url: @source_url,
+      groups_for_modules: [
+        Running: [
+          AssertCommit,
+          AssertCommit.CLI,
+          AssertCommit.Config,
+          AssertCommit.Runner,
+          AssertCommit.Formatter,
+          AssertCommit.Hooks
+        ],
+        Rules: [AssertCommit.Rule, AssertCommit.RuleSet, ~r/^AssertCommit\.Rules\./],
+        Assertions: [~r/^AssertCommit\.Assertions/, AssertCommit.Query, AssertCommit.Violation],
+        Adapters: [AssertCommit.Adapter, ~r/^AssertCommit\.Adapters\./],
+        "Source analysis": [
+          ~r/^AssertCommit\.Source/,
+          AssertCommit.MixFile,
+          AssertCommit.Changelog
+        ],
+        "Change sets": [
+          AssertCommit.Commit,
+          AssertCommit.Tree,
+          AssertCommit.FileChange,
+          AssertCommit.Hunk,
+          AssertCommit.Message,
+          AssertCommit.Pattern,
+          AssertCommit.Paths,
+          AssertCommit.Git
+        ],
+        Errors: [~r/Error$/]
+      ]
     ]
   end
 end

@@ -49,6 +49,11 @@ mix assert_commit.install     # commit-msg hook: checks staged changes + message
 mix assert_commit             # run it by hand; picks the working tree if dirty, else HEAD
 ```
 
+Add `import_deps: [:assert_commit]` to `.formatter.exs` so `mix format`
+leaves `rule :id, "name", fn … end` declarations without parentheses. The
+first run after `mix deps.get` compiles the dependency, so the first hooked
+commit in a fresh clone is slower than the rest.
+
 The `commit-msg` hook runs `mix assert_commit --staged --message-file "$1"`,
 so every rule — message rules included — runs before the commit exists. A
 companion `prepare-commit-msg` hook notices `git commit --amend` and has the
@@ -184,9 +189,14 @@ know about it — `action_fallback` controllers, `DynamicSupervisor`
 children, `virtual` fields, unmerged migrations (`Rules.Ecto` with
 `since: "origin/main"`), `fixup!` commits, `Revert`/`Merge` subjects.
 
-`.assert_commit.exs` is evaluated as code, like `mix.exs`. Umbrella and
-subdirectory projects work: directory patterns match at any depth and every
-`mix.exs` is read.
+`.assert_commit.exs` is evaluated as code, like `mix.exs` — and with
+`--repo` it is the *other* repository's file that runs. Do not point
+`--repo` at a checkout you would not run `mix` in; a CI job examining
+untrusted pull-request checkouts should pass `--config` with its own file.
+
+Umbrella and subdirectory projects work: directory patterns match at any
+depth and every `mix.exs` is read. POSIX shells only for the hooks; Windows
+is untested.
 
 ## License
 
