@@ -66,7 +66,7 @@ defmodule AssertCommit.RuleSet do
       @before_compile AssertCommit.RuleSet
       @assert_commit_description unquote(Keyword.get(opts, :description))
       Module.register_attribute(__MODULE__, :assert_commit_rules, accumulate: true)
-      import AssertCommit.RuleSet, only: [rule: 3]
+      import AssertCommit.RuleSet, only: [rule: 3, rule: 4]
 
       @impl true
       def requires, do: unquote(Keyword.get(opts, :requires, []))
@@ -110,13 +110,15 @@ defmodule AssertCommit.RuleSet do
 
   @doc """
   Declares a rule. `check` is a function of the commit, or of the commit and
-  the set's options.
+  the set's options. `attrs` may give `sources:`, the change-set sources the
+  rule applies to (`[:head, :rev]` for rules that only make sense on a
+  commit); elsewhere it is skipped.
   """
-  defmacro rule(id, name, check) do
+  defmacro rule(id, name, check, attrs \\ []) do
     quote do
       @assert_commit_rules unquote(id)
       @doc false
-      def __rule__(unquote(id)), do: {unquote(name), unquote(check)}
+      def __rule__(unquote(id)), do: {unquote(name), unquote(check), unquote(attrs)}
     end
   end
 
@@ -132,8 +134,8 @@ defmodule AssertCommit.RuleSet do
       @impl true
       def rules(opts \\ []) do
         for id <- Enum.reverse(@assert_commit_rules) do
-          {name, check} = __rule__(id)
-          Rule.new(id, name, check, set: __MODULE__, opts: opts)
+          {name, check, attrs} = __rule__(id)
+          Rule.new(id, name, check, [set: __MODULE__, opts: opts] ++ attrs)
         end
       end
     end

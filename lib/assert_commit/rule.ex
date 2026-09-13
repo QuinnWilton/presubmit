@@ -6,12 +6,17 @@ defmodule AssertCommit.Rule do
   options the rule set was given) that returns `:ok` or raises
   `AssertCommit.Violation`. Rules are grouped into rule sets
   (`AssertCommit.RuleSet`) and run by `AssertCommit.Runner`.
+
+  A rule may declare the change-set `sources` it applies to; outside them it
+  is skipped. `no_fixup` is the canonical case: `fixup!` commits are meant to
+  exist locally and be autosquashed, so the rule applies to committed
+  revisions (`:head`, `:rev`) and not to the index a hook is checking.
   """
 
   alias AssertCommit.{Commit, NoMessageError, Violation}
 
   @enforce_keys [:id, :name, :check]
-  defstruct [:id, :name, :check, set: nil, opts: []]
+  defstruct [:id, :name, :check, set: nil, opts: [], sources: nil]
 
   @type check ::
           (Commit.t() -> :ok | {:skip, String.t()})
@@ -22,7 +27,8 @@ defmodule AssertCommit.Rule do
           name: String.t(),
           check: check(),
           set: module() | nil,
-          opts: keyword()
+          opts: keyword(),
+          sources: [atom()] | nil
         }
 
   @type outcome ::
@@ -41,13 +47,22 @@ defmodule AssertCommit.Rule do
   @doc """
   Runs the rule against `commit`.
 
-  A `AssertCommit.Violation` is a failure; a `AssertCommit.NoMessageError`
-  (a message rule run against the index or working tree) is a skip, as is a
-  check returning `{:skip, reason}` (a rule whose option is not configured);
-  any other exception is reported as an error rather than crashing the run.
+  A `AssertCommit.Violation` is a failure. A skip is: a
+  `AssertCommit.NoMessageError` (a message rule against the index or working
+  tree), a check returning `{:skip, reason}` (nothing configured), or a
+  change set outside the rule's `sources`. Any other exception is reported
+  as an error rather than crashing the run.
   """
   @spec run(t(), Commit.t()) :: outcome()
-  def run(%__MODULE__{check: check, opts: opts}, %Commit{} = commit) do
+  def run(%__MODULE__{sources: sources} = rule, %Commit{source: source} = commit) do
+    if is_list(sources) and source not in sources do
+      {:skip, "only checked on #{Enum.map_join(sources, "/", &inspect/1)} change sets"}
+    else
+      check(rule, commit)
+    end
+  end
+
+  defp check(%__MODULE__{check: check, opts: opts}, commit) do
     result =
       case check do
         f when is_function(f, 1) -> f.(commit)

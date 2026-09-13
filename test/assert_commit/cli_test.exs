@@ -89,12 +89,20 @@ defmodule AssertCommit.CLITest do
     message =
       Path.join(System.tmp_dir!(), "assert_commit_msg_#{System.unique_integer([:positive])}")
 
-    File.write!(message, "fixup! wip\n\n# Please enter the commit message\n")
+    File.write!(
+      message,
+      "wip: a subject that is much too long to fit within the seventy-two column limit\n\n# Please enter the commit message\n"
+    )
+
     on_exit(fn -> File.rm(message) end)
 
     {1, out} = run(["--repo", repo, "--staged", "--message-file", message, "--no-color"])
-    assert out =~ ~r/^Examining staged index \(1 file differs from HEAD\) — fixup! wip\n/m
-    assert out =~ "✗ no fixup!/squash!/amend! commits"
+    assert out =~ ~r/^Examining staged index \(1 file differs from HEAD\) — wip: a subject/m
+    assert out =~ "✗ subject fits the configured length"
+
+    assert out =~
+             "no fixup!/squash!/amend! commits (skipped: only checked on :head/:rev change sets)"
+
     refute out =~ "skipped: needs a commit message"
 
     {0, out} =
@@ -110,7 +118,7 @@ defmodule AssertCommit.CLITest do
       ])
 
     assert out =~ "— Add hooked\n"
-    assert out =~ "✓ no fixup!/squash!/amend! commits"
+    assert out =~ "✓ subject fits the configured length"
   end
 
   test "--base checks the amended commit rather than the delta since HEAD" do

@@ -20,6 +20,7 @@ defmodule AssertCommit.RuleSetTest do
     end
 
     rule :crashes, "raises something else", fn _commit -> raise ArgumentError, "boom" end
+    rule(:committed_only, "only on commits", fn _commit -> :ok end, sources: [:head, :rev])
   end
 
   defp commit, do: Commit.new(after: %{"a" => "a\n"}, message: "s")
@@ -31,7 +32,8 @@ defmodule AssertCommit.RuleSetTest do
                {:never, Sample, [strict: true]},
                {:with_opts, Sample, [strict: true]},
                {:skips, Sample, [strict: true]},
-               {:crashes, Sample, [strict: true]}
+               {:crashes, Sample, [strict: true]},
+               {:committed_only, Sample, [strict: true]}
              ]
   end
 
@@ -41,7 +43,8 @@ defmodule AssertCommit.RuleSetTest do
              :never,
              :with_opts,
              :skips,
-             :crashes
+             :crashes,
+             :committed_only
            ]
 
     assert Enum.map(RuleSet.expand({Sample, only: [:always, :skips]}), & &1.id) == [
@@ -49,7 +52,10 @@ defmodule AssertCommit.RuleSetTest do
              :skips
            ]
 
-    assert Enum.map(RuleSet.expand({Sample, except: [:never, :crashes]}), & &1.id) == [
+    assert Enum.map(
+             RuleSet.expand({Sample, except: [:never, :crashes, :committed_only]}),
+             & &1.id
+           ) == [
              :always,
              :with_opts,
              :skips
@@ -115,8 +121,17 @@ defmodule AssertCommit.RuleSetTest do
   end
 
   test "message rules skip on change sets without a message" do
-    rule = AssertCommit.Rules.Message |> then(&RuleSet.expand({&1, only: [:no_fixup]})) |> hd()
+    rule =
+      AssertCommit.Rules.Message |> then(&RuleSet.expand({&1, only: [:subject_length]})) |> hd()
+
     assert {:skip, reason} = Rule.run(rule, Commit.new(after: %{}))
     assert reason =~ "needs a commit message"
+  end
+
+  test "a rule with sources: is skipped elsewhere" do
+    [rule] = RuleSet.expand({Sample, only: [:committed_only]})
+    assert rule.sources == [:head, :rev]
+    assert {:skip, "only checked on :head/:rev change sets"} = Rule.run(rule, commit())
+    assert :pass = Rule.run(rule, %{commit() | source: :head})
   end
 end
