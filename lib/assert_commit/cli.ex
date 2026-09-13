@@ -235,7 +235,9 @@ defmodule AssertCommit.CLI do
   end
 
   defp list(%Config{sets: sets} = config) do
-    Enum.join(config_notes(config), "\n") <>
+    "Rules see source shapes only: functions, routes, schemas, and children produced by macros\n" <>
+      "are invisible to them, and a rule that depends on such code passes vacuously.\n\n" <>
+      Enum.join(config_notes(config), "\n") <>
       Enum.map_join(sets, "\n\n", fn spec ->
         {module, set_opts} = if is_atom(spec), do: {spec, []}, else: spec
         rules = AssertCommit.RuleSet.expand(spec)

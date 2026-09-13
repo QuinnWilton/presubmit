@@ -55,8 +55,13 @@ companion `prepare-commit-msg` hook notices `git commit --amend` and has the
 amended commit checked (`HEAD^` to the index) instead of the delta since
 `HEAD`, which could never satisfy a rule whose other half is in the original
 commit. Add `--pre-commit` for an earlier content-only pass before the editor
-opens; `--uninstall` removes them all. Hooks are per clone and
-`git commit --no-verify` skips them, so CI is the backstop:
+opens; `--uninstall` removes them all. The hooks step aside with a note
+while a merge is in progress, when amending a merge, and when `mix` is not
+on `PATH` (GUI clients often lack your shell environment); a rule that
+crashes is reported but does not block. Run the installer from the project
+directory — in a subdirectory project of a larger repository the hooks `cd`
+there first. Hooks are per clone and `git commit --no-verify` skips them
+(the right answer for an initial import, once), so CI is the backstop:
 
 ```yaml
 # .github/workflows/ci.yml
@@ -72,7 +77,7 @@ commits:
     - if: github.event_name == 'pull_request'
       run: mix assert_commit --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
     - if: github.event_name == 'push'
-      run: mix assert_commit --head
+      run: mix assert_commit --range ${{ github.event.before }}..${{ github.sha }}   # --head for a new branch
 ```
 
 On `pull_request` events `HEAD` is a synthetic merge commit, which
@@ -170,9 +175,18 @@ prints a warning rather than silently checking the wrong thing.
 ## Limits
 
 Adapters recognise conventional shapes (`use MyAppWeb, :controller`,
-`use Ecto.Schema`, `children = [...]`), not macro semantics; a module defined
-some other way is invisible to the rules that depend on it, which then pass
-vacuously. Each adapter's documentation lists the shapes it understands.
+`use Ecto.Schema`, `children = [...]`), not macro semantics; functions,
+routes, schemas, and child specs produced by macros are invisible, and a
+rule that depends on them passes vacuously rather than failing. Each
+adapter's documentation lists the shapes it understands; `--list` repeats
+the warning. Where a convention is commonly bypassed on purpose the rules
+know about it — `action_fallback` controllers, `DynamicSupervisor`
+children, `virtual` fields, unmerged migrations (`Rules.Ecto` with
+`since: "origin/main"`), `fixup!` commits, `Revert`/`Merge` subjects.
+
+`.assert_commit.exs` is evaluated as code, like `mix.exs`. Umbrella and
+subdirectory projects work: directory patterns match at any depth and every
+`mix.exs` is read.
 
 ## License
 

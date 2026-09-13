@@ -15,6 +15,8 @@ defmodule AssertCommit.Config do
 
   A project-specific rule set can be defined inline in the file with
   `defmodule`, or loaded from another file with `Code.require_file/1`.
+  The file is evaluated as code, like `mix.exs` or `.credo.exs`; with
+  `--repo` that is the *other* repository's file.
 
   ## Defaults
 

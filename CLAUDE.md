@@ -10,9 +10,9 @@ Loads a change set (a commit, the staged index, the working tree, or an in-memor
 
 Layers, bottom up. Each depends only on the ones below it.
 
-- `AssertCommit.Git` — the only module that shells out. Plumbing only, global/system config ignored. `System.cmd` cannot close stdin, so never use `--stdin`. `write_worktree_tree/1` builds a tree from disk through a temporary index (`GIT_INDEX_FILE`) so the real index is never touched.
+- `AssertCommit.Git` — the only module that shells out. Plumbing only; the user's config is honoured (CI needs `safe.directory`) and every call passes the flags that keep output config-independent. `System.cmd` cannot close stdin, so never use `--stdin`. `write_worktree_tree/1` builds a tree from disk through a temporary index (`GIT_INDEX_FILE`) so the real index is never touched.
 - `AssertCommit.Tree`, `FileChange`, `Hunk`, `Message`, `Commit` — trees are a path set plus a reader closure (git- or map-backed); hunks come from `List.myers_difference/2` over blob contents. `Commit.head/rev/staged/worktree/new` all produce the same struct and compute `elixir: Source.Diff.t()` at load. `AssertCommit.load/1` adds `source: :auto` (two-state: `:worktree` if `Git.dirty?/1`, else `:head`).
-- `AssertCommit.Source.Facts` / `Diff` / `Index` — per-file structural facts (memoised per `{tree_oid, path}`), set-difference diff with rename detection, tree-wide discovery. `Source.models/2` and `Source.find/3` apply adapters.
+- `AssertCommit.Source.Facts` / `Diff` / `Index` — per-file structural facts (memoised per `{tree_oid, path}` in the process dictionary; `Facts.clear_cache/0` between the commits of a range), set-difference diff with rename detection, tree-wide discovery. `AssertCommit.Paths` holds the depth-agnostic directory patterns; never write `~r{^lib/}`. `Source.models/2` and `Source.find/3` apply adapters.
 - `AssertCommit.Adapter` + `AssertCommit.Adapters.*` — `recognize?/1` and `extract/1` over a `Facts.Module`. `PhoenixRouter` reproduces Phoenix's scope-alias concatenation exactly.
 - `AssertCommit.MixFile`, `AssertCommit.Changelog` — file-level parsers.
 - `AssertCommit.Query` (data) and `AssertCommit.Assertions{,.Phoenix,.Ecto,.OTP,.ExUnit,.Mix,.Changelog}` (verbs that raise `AssertCommit.Violation` via `Assertions.Flunk`).
@@ -54,10 +54,12 @@ mix dialyzer                  # static analysis
 - Never `git reset --hard` with uncommitted work in the tree; a refused hook means the commit did not happen, so `HEAD~1` is the previous real commit. Stash or commit first.
 - Dialyzer rejects `MapSet.t()` inside a map type in a `@spec` (opaque subterm); `RuleSet.env()` uses plain lists.
 - Map key order is not stable across OTP versions; `AssertCommit.JSON` sorts keys.
+- macOS temp dirs are symlinks (`/var` → `/private/var`); compare paths by suffix in tests, and let git compute relative paths (`--show-prefix`).
+- Rules that only make sense on a commit declare `sources: [:head, :rev]`; in a hook the change set is `:staged`.
 
 ## CI
 
-`.github/workflows/ci.yml` has a `commits` job with `fetch-depth: 0`: pull requests run `mix assert_commit --range base..head` (HEAD on a PR is a synthetic merge commit, which the tool refuses), pushes run `--head`.
+`.github/workflows/ci.yml` has a `commits` job with `fetch-depth: 0`: pull requests run `mix assert_commit --range base..head` (HEAD on a PR is a synthetic merge commit, which the tool refuses), pushes run `--range before..sha` (`--head` when `before` is the all-zeros SHA of a new branch).
 
 ## Commit message style
 

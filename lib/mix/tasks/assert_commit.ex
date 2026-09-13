@@ -24,6 +24,10 @@ defmodule Mix.Tasks.AssertCommit do
   `Rules.Changelog` when a `CHANGELOG.md` exists; the output says what was
   enabled and why.
 
+  A first commit that imports a whole codebase is not a normal commit; the
+  shape and coverage rules will object. `git commit --no-verify` is the
+  intended answer there, once.
+
   The project is not compiled: rules only parse source. Under CI, examining
   a dirty working tree prints a warning, since that usually means a build
   step modified the checkout; pass `--head` or `--rev` to gate the commit.

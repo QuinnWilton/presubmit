@@ -201,6 +201,13 @@ defmodule AssertCommit.CLITest do
              "AssertCommit.Rules.Ecto [except: [:migrations_reversible]]\n  migrations_ordered — added migrations are newer than every existing one"
 
     refute out =~ "migrations_reversible — "
+    refute out =~ "built-in defaults"
+
+    {0, defaults} = run(["--repo", repo, "--list"])
+    assert defaults =~ "Rules see source shapes only"
+    assert defaults =~ "No .assert_commit.exs; using built-in defaults.\n"
+    assert defaults =~ "AssertCommit.Rules.Phoenix\n  routed — "
+    refute defaults =~ "AssertCommit.Rules.Changelog"
   end
 
   test "--on-error decides whether a crashed rule fails the run", %{repo: repo} do
