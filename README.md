@@ -13,7 +13,9 @@ whether the function it removes was ever deprecated, whether a move was
 landed on its own. assert_commit checks those. It parses the Elixir a change
 touched into modules, functions, schema fields, routes, and child specs — never
 compiling anything — and runs rules over that, on the commit, the staged
-index, or the working tree.
+index, or the working tree. A commit of the Elixir compiler's repository
+(330 source files) checks in under two seconds; a 300-commit range in about
+a minute.
 
 ```
 $ mix assert_commit
@@ -93,10 +95,19 @@ The first line of output always names what was examined.
 
 ## Configuration
 
-Without a `.assert_commit.exs`, the defaults adapt to the project — Phoenix
-and Ecto rules when those libraries are loaded or are dependencies, changelog
-rules when there is a `CHANGELOG.md` — and the output says what was enabled
-and why. To choose, the file is a list of rule sets:
+Without a `.assert_commit.exs`, the defaults are the rules that do not fail
+an ordinary commit — calibrated against this workspace's projects and the
+Elixir repository's history — and they adapt to the project: Phoenix and
+Ecto rules when those libraries are loaded or are dependencies, the release
+changelog rule when there is a `CHANGELOG.md`. The output says what was
+enabled and why.
+
+The rules that encode a *policy* are opt-in, because on real histories they
+fire on 15–40% of otherwise reasonable commits: `specs` (every new public
+function typed), `removals_deprecated` (deprecate before removing — for
+libraries), `api_changes_logged` (a changelog entry per API change),
+`behaviour_changes_tested` and `tested` (tests move with code). Turn them on
+deliberately; the file is a list of rule sets and replaces the defaults:
 
 ```elixir
 # .assert_commit.exs
