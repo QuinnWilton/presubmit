@@ -9,7 +9,7 @@ defmodule AssertCommit.Assertions.Ecto do
 
   alias AssertCommit.Adapters.{EctoMigration, EctoSchema}
   alias AssertCommit.Assertions.Flunk
-  alias AssertCommit.{Commit, Source}
+  alias AssertCommit.{Commit, Source, Tree}
 
   @doc "Migrations the commit adds."
   @spec migrations_added(Commit.t()) :: [EctoMigration.t()]
@@ -64,28 +64,55 @@ defmodule AssertCommit.Assertions.Ecto do
   @doc """
   Asserts that migrations which existed before the commit are unchanged:
   not modified, deleted, or renamed.
+
+  With `since: ref`, only migrations present on `ref` (say `"origin/main"`)
+  are immutable, so a migration that is still unmerged can be edited freely.
+  Returns `{:skip, reason}` when `ref` cannot be resolved.
   """
-  @spec assert_migrations_immutable(Commit.t()) :: :ok
-  def assert_migrations_immutable(%Commit{} = commit) do
+  @spec assert_migrations_immutable(Commit.t(), keyword()) :: :ok | {:skip, String.t()}
+  def assert_migrations_immutable(%Commit{} = commit, opts \\ []) do
     %{removed: removed, modified: modified} = Source.models(commit, EctoMigration)
 
-    problems =
-      Enum.map(removed, &"#{&1.path} (removed)") ++
-        Enum.map(modified, fn {old, new} ->
-          if old.path == new.path,
-            do: "#{new.path} (modified)",
-            else: "#{old.path} → #{new.path} (renamed)"
-        end)
+    case published_filter(commit, Keyword.get(opts, :since)) do
+      {:skip, reason} ->
+        {:skip, reason}
 
-    case problems do
-      [] ->
-        :ok
+      published? ->
+        removed = for m <- removed, published?.(m.path), do: "#{m.path} (removed)"
 
-      _ ->
-        Flunk.flunk([
-          "Migrations are immutable once committed, but this commit changes:"
-          | Flunk.indent(problems)
-        ])
+        modified =
+          for {old, new} <- modified, published?.(old.path) do
+            if old.path == new.path,
+              do: "#{new.path} (modified)",
+              else: "#{old.path} → #{new.path} (renamed)"
+          end
+
+        case removed ++ modified do
+          [] ->
+            :ok
+
+          problems ->
+            Flunk.flunk([
+              "Migrations are immutable once committed, but this commit changes:"
+              | Flunk.indent(problems)
+            ])
+        end
+    end
+  end
+
+  defp published_filter(_commit, nil), do: fn _path -> true end
+
+  defp published_filter(%Commit{repo: nil}, since),
+    do: {:skip, "since: #{since} needs a git-backed change set"}
+
+  defp published_filter(%Commit{repo: repo}, since) do
+    case AssertCommit.Git.rev_parse(repo, since <> "^{tree}") do
+      {:ok, oid} ->
+        tree = Tree.from_git(repo, oid)
+        &Tree.exists?(tree, &1)
+
+      {:error, _} ->
+        {:skip, "since: #{since} does not resolve in this repository"}
     end
   end
 

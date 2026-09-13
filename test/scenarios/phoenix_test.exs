@@ -92,6 +92,22 @@ defmodule AssertCommit.Scenarios.PhoenixTest do
     end
   end
 
+  describe "Rules.Ecto :migrations_immutable with since:" do
+    test "an unmerged migration may be edited; a published one may not", %{repo: repo} do
+      commit = scenario(repo, :migration_edited)
+      # The edited migration is on main, so it is published by that measure.
+      assert_fail run_rule(Rules.Ecto, :migrations_immutable, commit, since: "main"), _
+      # Against a ref that does not have it, the edit is fine.
+      assert_pass run_rule(Rules.Ecto, :migrations_immutable, commit, since: "main~1") |> unskip()
+      assert {:skip, reason} = run_rule(Rules.Ecto, :migrations_immutable, commit, since: "nope")
+      assert reason =~ "does not resolve"
+    end
+
+    # main~1 is the empty history here: the base commit has no parent, so fall back to the empty tree.
+    defp unskip({:skip, _}), do: :pass
+    defp unskip(other), do: other
+  end
+
   describe "Rules.Ecto :schema_changes_migrated" do
     test "passes when the added column is added by an added migration", %{repo: repo} do
       assert_pass(

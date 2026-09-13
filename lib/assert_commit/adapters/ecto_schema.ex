@@ -70,12 +70,18 @@ defmodule AssertCommit.Adapters.EctoSchema do
   @spec field_names(t()) :: [atom()]
   def field_names(%__MODULE__{fields: fields}), do: Enum.map(fields, & &1.name)
 
-  @doc "Columns the schema's table is expected to have: plain fields and `belongs_to` foreign keys."
+  @doc """
+  Columns the schema's table is expected to have: plain fields (under their
+  `source:` name if given, and never `virtual: true` ones) and `belongs_to`
+  foreign keys.
+  """
   @spec columns(t()) :: [atom()]
   def columns(%__MODULE__{fields: fields}) do
     Enum.flat_map(fields, fn
-      %Field{kind: :field, name: name} ->
-        [name]
+      %Field{kind: :field, opts: opts} = field ->
+        if Keyword.get(opts, :virtual, false),
+          do: [],
+          else: [Keyword.get(opts, :source, field.name)]
 
       %Field{kind: :belongs_to, name: name, opts: opts} ->
         [Keyword.get(opts, :foreign_key, :"#{name}_id")]

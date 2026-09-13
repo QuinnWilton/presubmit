@@ -95,6 +95,82 @@ defmodule AssertCommit.CommitTest do
     end
   end
 
+  describe "false positives the adapters must not produce" do
+    import AssertCommit.Assertions.{Ecto, OTP, Phoenix}
+
+    @router "lib/demo_web/router.ex"
+
+    test "an action_fallback controller and a router-mentioned controller count as routed" do
+      commit =
+        Commit.new(
+          before: %{
+            @router =>
+              "defmodule DemoWeb.Router do\n  use Phoenix.Router\n  my_routes DemoWeb.SpecialController\nend\n"
+          },
+          after: %{
+            @router =>
+              "defmodule DemoWeb.Router do\n  use Phoenix.Router\n  my_routes DemoWeb.SpecialController\nend\n",
+            "lib/demo_web/controllers/fallback_controller.ex" =>
+              "defmodule DemoWeb.FallbackController do\n  use DemoWeb, :controller\nend\n",
+            "lib/demo_web/controllers/post_controller.ex" =>
+              "defmodule DemoWeb.PostController do\n  use DemoWeb, :controller\n  action_fallback DemoWeb.FallbackController\nend\n",
+            "lib/demo_web/controllers/special_controller.ex" =>
+              "defmodule DemoWeb.SpecialController do\n  use DemoWeb, :controller\nend\n"
+          }
+        )
+
+      # PostController itself is unrouted; the other two are legitimately so.
+      error = assert_raise AssertCommit.Violation, fn -> assert_routed(commit) end
+      assert error.message =~ "DemoWeb.PostController (controller)"
+      refute error.message =~ "FallbackController"
+      refute error.message =~ "SpecialController"
+    end
+
+    test "a process started dynamically by another module counts as supervised" do
+      commit =
+        Commit.new(
+          after: %{
+            "lib/demo/worker.ex" => "defmodule Demo.Worker do\n  use GenServer\nend\n",
+            "lib/demo/pool.ex" =>
+              "defmodule Demo.Pool do\n  def start(arg), do: DynamicSupervisor.start_child(Demo.DynSup, {Demo.Worker, arg})\nend\n"
+          }
+        )
+
+      assert_supervised(commit)
+
+      orphan =
+        Commit.new(
+          after: %{"lib/demo/worker.ex" => "defmodule Demo.Worker do\n  use GenServer\nend\n"}
+        )
+
+      assert_raise AssertCommit.Violation, ~r/Demo\.Worker \(gen_server\)/, fn ->
+        assert_supervised(orphan)
+      end
+    end
+
+    test "virtual fields do not demand a migration" do
+      commit =
+        Commit.new(
+          before: %{
+            "lib/demo/user.ex" =>
+              "defmodule Demo.User do\n  use Ecto.Schema\n  schema \"users\" do\n  end\nend\n"
+          },
+          after: %{
+            "lib/demo/user.ex" =>
+              "defmodule Demo.User do\n  use Ecto.Schema\n  schema \"users\" do\n    field :password, :string, virtual: true\n  end\nend\n"
+          }
+        )
+
+      assert_schema_changes_migrated(commit)
+    end
+
+    test "migrations_immutable since: needs a repository and skips otherwise" do
+      commit = Commit.new(after: %{})
+      assert {:skip, reason} = assert_migrations_immutable(commit, since: "origin/main")
+      assert reason =~ "needs a git-backed change set"
+    end
+  end
+
   describe "Query.formatting_only?/1" do
     test "true for a whitespace-only edit" do
       assert formatting_only?(Commit.new(before: %{"a" => "x=1\n"}, after: %{"a" => "x = 1\n"}))

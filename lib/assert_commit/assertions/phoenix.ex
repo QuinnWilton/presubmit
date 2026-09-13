@@ -7,6 +7,7 @@ defmodule AssertCommit.Assertions.Phoenix do
   alias AssertCommit.Adapters.{PhoenixHandler, PhoenixRouter}
   alias AssertCommit.Assertions.Flunk
   alias AssertCommit.{Commit, Paths, Source}
+  alias AssertCommit.Source.Index
 
   @doc """
   Asserts every controller or LiveView the commit adds is routed by some
@@ -16,6 +17,11 @@ defmodule AssertCommit.Assertions.Phoenix do
   through `scope` aliasing exactly as Phoenix does, so this holds whether
   the route was added in this commit or an earlier one, and fails even when
   the router file was edited for an unrelated reason.
+
+  Not every controller is routed by design: `action_fallback` targets are
+  exempt, and so is any module a router names at all — custom route macros
+  and `forward`ed plugs mention their modules without the adapter knowing
+  what the macro does.
   """
   @spec assert_routed(Commit.t()) :: :ok
   def assert_routed(%Commit{} = commit) do
@@ -30,10 +36,21 @@ defmodule AssertCommit.Assertions.Phoenix do
         :ok
 
       _ ->
-        routers = Source.find(commit.after, PhoenixRouter, Paths.lib())
+        router_facts =
+          commit.after |> Index.modules(Paths.lib()) |> Enum.filter(&PhoenixRouter.recognize?/1)
+
+        routers = Enum.map(router_facts, &PhoenixRouter.extract/1)
+        mentioned = Enum.flat_map(router_facts, & &1.references)
+
+        fallbacks =
+          commit.after |> Source.find(PhoenixHandler, Paths.lib()) |> Enum.map(& &1.fallback)
 
         unrouted =
-          for h <- handlers, not Enum.any?(routers, &PhoenixRouter.routes?(&1, h.module)), do: h
+          for h <- handlers,
+              not Enum.any?(routers, &PhoenixRouter.routes?(&1, h.module)),
+              h.module not in mentioned,
+              h.module not in fallbacks,
+              do: h
 
         case {unrouted, routers} do
           {[], _} ->

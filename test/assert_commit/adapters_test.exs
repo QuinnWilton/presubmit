@@ -71,6 +71,22 @@ defmodule AssertCommit.AdaptersTest do
     end
   end
 
+  describe "PhoenixHandler action_fallback" do
+    test "is recorded, alias-resolved" do
+      m =
+        module!(
+          "defmodule DemoWeb.PostController do\n  use DemoWeb, :controller\n  alias DemoWeb.Fallbacks\n  action_fallback Fallbacks.JSON\nend\n"
+        )
+
+      assert %PhoenixHandler{fallback: DemoWeb.Fallbacks.JSON} = Adapter.model(PhoenixHandler, m)
+
+      assert Adapter.model(
+               PhoenixHandler,
+               module!("defmodule H do\n  use DemoWeb, :controller\nend\n")
+             ).fallback == nil
+    end
+  end
+
   describe "PhoenixHandler" do
     test "classifies controllers, LiveViews, components, and channels" do
       for {source, kind} <- [
@@ -129,6 +145,24 @@ defmodule AssertCommit.AdaptersTest do
              ]
 
       assert EctoSchema.columns(schema) == [:title, :tags, :body, :author_id, :editor_key]
+    end
+
+    test "virtual fields have no column and source: renames one" do
+      schema =
+        module!("""
+        defmodule Demo.User do
+          use Ecto.Schema
+
+          schema "users" do
+            field :password, :string, virtual: true
+            field :name, :string, source: :full_name
+          end
+        end
+        """)
+        |> then(&Adapter.model(EctoSchema, &1))
+
+      assert EctoSchema.field_names(schema) == [:password, :name]
+      assert EctoSchema.columns(schema) == [:full_name]
     end
 
     test "embedded schemas have no source" do

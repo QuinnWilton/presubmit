@@ -23,7 +23,8 @@ defmodule AssertCommit.Commit do
             after: nil,
             changes: [],
             elixir: nil,
-            base: nil
+            base: nil,
+            repo: nil
 
   @type person :: %{name: String.t(), email: String.t(), date: DateTime.t()}
 
@@ -38,7 +39,8 @@ defmodule AssertCommit.Commit do
           after: Tree.t(),
           changes: [FileChange.t()],
           elixir: Diff.t() | nil,
-          base: String.t() | nil
+          base: String.t() | nil,
+          repo: Path.t() | nil
         }
 
   @doc """
@@ -88,6 +90,7 @@ defmodule AssertCommit.Commit do
 
     with_diff(%__MODULE__{
       source: :rev,
+      repo: repo,
       sha: info.sha,
       parents: info.parents,
       author: info.author,
@@ -136,6 +139,7 @@ defmodule AssertCommit.Commit do
 
     with_diff(%__MODULE__{
       source: :staged,
+      repo: repo,
       base: base,
       before: before,
       after: after_tree,
