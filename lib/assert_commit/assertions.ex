@@ -417,39 +417,22 @@ defmodule AssertCommit.Assertions do
   Asserts that a commit containing renames is a pure move.
 
   Moving a module means renaming its file, its `defmodule` line, and every
-  reference to it — in callers, tests, and docs. All of that is allowed;
-  anything else is not. The check compares the before and after sides
-  *under the rename map*: every renamed module's old name is rewritten to
-  the new one on the before side, and then Elixir files must define the same
+  reference to it — in callers, tests, and docs; moving any file means
+  updating references to its path. All of that is allowed; anything else is
+  not. The check compares the before and after sides *under the rename map*
+  of both module names and file paths: Elixir files must define the same
   functions with the same bodies, and other files must be textually
-  identical.
+  identical once old names and paths are rewritten to new ones.
 
   Commits with no renames pass trivially, so this can be applied to every
   commit to enforce "moves are their own commit".
   """
   @spec assert_pure_move(Commit.t()) :: :ok
   def assert_pure_move(%Commit{changes: changes} = commit) do
-    renames = Query.modules_renamed(commit)
-
-    cond do
-      renames == [] and not Enum.any?(changes, &(&1.status == :renamed)) ->
-        :ok
-
-      renames == [] ->
-        # Files moved but no module changed its name: the move must carry no other change at all.
-        problems =
-          for(c <- changes, c.status != :renamed, do: "#{c.path} (#{c.status})") ++
-            for(
-              c <- changes,
-              c.status == :renamed,
-              c.additions + c.deletions > 0,
-              do: "#{c.path} (edited)"
-            )
-
-        report_move(problems)
-
-      true ->
-        report_move(move_problems(commit, renames))
+    if Enum.any?(changes, &(&1.status == :renamed)) or Query.modules_renamed(commit) != [] do
+      report_move(move_problems(commit, Query.modules_renamed(commit)))
+    else
+      :ok
     end
   end
 
@@ -466,9 +449,12 @@ defmodule AssertCommit.Assertions do
   # Under the rename map, the before side must define exactly the functions the after side does,
   # and non-Elixir files must be textually identical. Elixir files are compared through their
   # facts with the renames applied at the resolved-module level, so aliases of any spelling match.
-  defp move_problems(%Commit{changes: changes, before: before, after: after_tree}, renames) do
+  defp move_problems(
+         %Commit{changes: changes, before: before, after: after_tree} = commit,
+         renames
+       ) do
     rename_map = Map.new(renames)
-    substitute = text_substitution(renames)
+    substitute = text_substitution(renames, Query.renamed(commit))
 
     {before_fns, after_fns, problems} =
       Enum.reduce(changes, {[], [], []}, fn change, {b, a, problems} ->
@@ -498,14 +484,21 @@ defmodule AssertCommit.Assertions do
       for(f <- before_fns -- after_fns, do: "#{format_key(f)} (removed or changed)")
   end
 
-  # For non-Elixir files (docs, configs): old names become new ones, longest-first so `A.B` does
-  # not clobber `A.B.C`; a trailing `.Upper` means a deeper module, a trailing `.lower` a call.
-  defp text_substitution(renames) do
-    patterns =
-      renames
+  # For non-Elixir files (docs, configs): old module names and old file paths become new ones,
+  # longest-first so `A.B` does not clobber `A.B.C`; for names, a trailing `.Upper` means a deeper
+  # module and a trailing `.lower` a call.
+  defp text_substitution(module_renames, path_renames) do
+    names =
+      module_renames
       |> Enum.map(fn {old, new} -> {name_text(old), name_text(new)} end)
-      |> Enum.sort_by(fn {old, _} -> -String.length(old) end)
       |> Enum.map(fn {old, new} -> {~r/(?<![\w.])#{Regex.escape(old)}(?!\w|\.[A-Z])/, new} end)
+
+    paths =
+      Enum.map(path_renames, fn {old, new} ->
+        {~r/(?<![\w\/])#{Regex.escape(old)}(?![\w\/])/, new}
+      end)
+
+    patterns = Enum.sort_by(names ++ paths, fn {regex, _} -> -String.length(regex.source) end)
 
     fn text ->
       Enum.reduce(patterns, text, fn {regex, new}, acc -> Regex.replace(regex, acc, new) end)

@@ -146,6 +146,36 @@ defmodule AssertCommit.CommitTest do
       assert error.message =~ "Shop.Checkout.run/1 (removed or changed)"
     end
 
+    test "moving a non-Elixir file and updating references to its path is a pure move" do
+      before = %{
+        "guides/img/a.png" => "png",
+        "guides/intro.md" => "See guides/img/a.png and guides/img/a.png.\n"
+      }
+
+      after_files = %{"img/a.png" => "png", "guides/intro.md" => "See img/a.png and img/a.png.\n"}
+
+      commit =
+        Commit.new(
+          before: before,
+          after: after_files,
+          renames: [{"guides/img/a.png", "img/a.png"}]
+        )
+
+      assert modules_renamed(commit) == []
+      assert_pure_move(commit)
+
+      edited =
+        Commit.new(
+          before: before,
+          after: Map.put(after_files, "guides/intro.md", "See img/a.png. New prose.\n"),
+          renames: [{"guides/img/a.png", "img/a.png"}]
+        )
+
+      assert_raise AssertCommit.Violation,
+                   ~r/guides\/intro\.md \(modified, not a rename-only change\)/,
+                   fn -> assert_pure_move(edited) end
+    end
+
     test "an unrelated file change is reported" do
       commit = moved(%{"README.md" => "Use `Shop.Basket.total/1`. Also new prose.\n"})
 
