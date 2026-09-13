@@ -182,3 +182,37 @@ defmodule AssertCommit.Source.FactsTest do
     end
   end
 end
+
+defmodule AssertCommit.Source.FactsRobustnessTest do
+  use ExUnit.Case, async: true
+
+  alias AssertCommit.Source.Facts
+
+  test "modules without a literal name are skipped, and literal modules nested in them are kept" do
+    {:ok, facts} =
+      Facts.from_source("""
+      defmodule Outer do
+        defmodule __MODULE__.Dynamic do
+          defmodule Inner do
+            def f, do: 1
+          end
+        end
+
+        defmacro make(name) do
+          quote do
+            defmodule unquote(name) do
+              def g, do: 2
+            end
+          end
+        end
+      end
+      """)
+
+    assert Enum.map(facts.modules, & &1.name) == [Outer, Outer.Inner]
+  end
+
+  test "a `defmodule` whose body is not a block is still extracted" do
+    assert {:ok, %Facts{modules: [%{name: A, functions: [%{name: :f}]}]}} =
+             Facts.from_source("defmodule A, do: (def f, do: 1)")
+  end
+end

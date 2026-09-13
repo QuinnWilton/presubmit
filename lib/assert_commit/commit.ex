@@ -216,7 +216,10 @@ defmodule AssertCommit.Commit do
         {:error, error} -> raise error
       end
 
-    Enum.map(entries, fn entry ->
+    entries
+    # Submodule pointers (mode 160000) are not files.
+    |> Enum.reject(&("160000" in [&1.old_mode, &1.new_mode]))
+    |> Enum.map(fn entry ->
       {path, old_path} =
         case entry.status do
           :deleted -> {entry.old_path, nil}

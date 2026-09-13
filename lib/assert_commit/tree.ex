@@ -23,9 +23,12 @@ defmodule AssertCommit.Tree do
   """
   @spec from_git(Path.t(), Git.oid()) :: t()
   def from_git(repo, oid) do
+    # `ls-tree -r` also lists submodule entries (type `commit`); only blobs can be read.
     paths =
-      Git.run!(repo, ["ls-tree", "-r", "-z", "--name-only", oid])
-      |> String.split("\0", trim: true)
+      for entry <- Git.run!(repo, ["ls-tree", "-r", "-z", oid]) |> String.split("\0", trim: true),
+          [meta, path] <- [String.split(entry, "\t", parts: 2)],
+          [_mode, "blob", _oid] <- [String.split(meta, " ")],
+          do: path
 
     %__MODULE__{
       oid: oid,

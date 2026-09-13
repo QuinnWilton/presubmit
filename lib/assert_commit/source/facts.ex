@@ -155,6 +155,9 @@ defmodule AssertCommit.Source.Facts do
       modules = ast |> collect_modules(path, [], %{}) |> Enum.reverse()
       {:ok, %__MODULE__{path: path, modules: modules}}
     end
+  rescue
+    # A shape this extractor does not understand must not take the whole run down.
+    e -> {:error, {:extract, path, Exception.message(e)}}
   end
 
   defp do_extract(tree, path) do
@@ -172,12 +175,44 @@ defmodule AssertCommit.Source.Facts do
 
   ## Module collection
 
+  # `defmodule unquote(name)` and `defmodule __MODULE__.Sub` have no literal name; their bodies
+  # are still walked for nested literal modules.
+  defp collect_modules({:defmodule, _meta, [name, [{:do, body}]]}, path, prefix, env)
+       when not is_tuple(name) or elem(name, 0) != :__aliases__ do
+    collect_modules(body, path, prefix, env)
+  end
+
   defp collect_modules(
          {:defmodule, meta, [{:__aliases__, _, parts}, [{:do, body}]]},
          path,
          prefix,
          env
-       ) do
+       )
+       when is_list(parts) and parts != [] do
+    if Enum.all?(parts, &is_atom/1),
+      do: literal_module(meta, parts, body, path, prefix, env),
+      else: collect_modules(body, path, prefix, env)
+  end
+
+  defp collect_modules({:defmodule, _meta, [_name, [{:do, body}]]}, path, prefix, env) do
+    collect_modules(body, path, prefix, env)
+  end
+
+  defp collect_modules({_, _, args}, path, prefix, env) when is_list(args) do
+    Enum.reduce(args, [], fn arg, acc -> collect_modules(arg, path, prefix, env) ++ acc end)
+  end
+
+  defp collect_modules({a, b}, path, prefix, env) do
+    collect_modules(b, path, prefix, env) ++ collect_modules(a, path, prefix, env)
+  end
+
+  defp collect_modules(list, path, prefix, env) when is_list(list) do
+    Enum.reduce(list, [], fn item, acc -> collect_modules(item, path, prefix, env) ++ acc end)
+  end
+
+  defp collect_modules(_, _path, _prefix, _env), do: []
+
+  defp literal_module(meta, parts, body, path, prefix, env) do
     full = prefix ++ parts
     name = Elixir.Module.concat(full)
     env = Map.put(env, :__MODULE__, name)
@@ -202,20 +237,6 @@ defmodule AssertCommit.Source.Facts do
 
     nested ++ [module]
   end
-
-  defp collect_modules({_, _, args}, path, prefix, env) when is_list(args) do
-    Enum.reduce(args, [], fn arg, acc -> collect_modules(arg, path, prefix, env) ++ acc end)
-  end
-
-  defp collect_modules({a, b}, path, prefix, env) do
-    collect_modules(b, path, prefix, env) ++ collect_modules(a, path, prefix, env)
-  end
-
-  defp collect_modules(list, path, prefix, env) when is_list(list) do
-    Enum.reduce(list, [], fn item, acc -> collect_modules(item, path, prefix, env) ++ acc end)
-  end
-
-  defp collect_modules(_, _path, _prefix, _env), do: []
 
   defp block_items({:__block__, _, items}), do: items
   defp block_items(nil), do: []

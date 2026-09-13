@@ -16,11 +16,14 @@ defmodule AssertCommit.FileChange do
             old_path: nil,
             similarity: nil,
             binary?: false,
+            diffed?: true,
             additions: 0,
             deletions: 0,
             hunks: []
 
   @type status :: :added | :modified | :deleted | :renamed | :copied | :type_changed
+
+  @max_diff_bytes 1_000_000
 
   @type t :: %__MODULE__{
           status: status(),
@@ -28,6 +31,7 @@ defmodule AssertCommit.FileChange do
           old_path: String.t() | nil,
           similarity: non_neg_integer() | nil,
           binary?: boolean(),
+          diffed?: boolean(),
           additions: non_neg_integer(),
           deletions: non_neg_integer(),
           hunks: [Hunk.t()]
@@ -37,7 +41,9 @@ defmodule AssertCommit.FileChange do
   Builds a change record by diffing the file's contents in the two trees.
 
   Binary files (those containing a NUL byte, git's own heuristic) get no
-  hunks and zero line counts.
+  hunks and zero line counts, and so do files over `max_diff_bytes/0` in
+  either version, whose line diff would be too expensive; those are marked
+  `diffed?: false`.
   """
   @spec build(status(), String.t(), String.t() | nil, Tree.t(), Tree.t(), keyword()) :: t()
   def build(status, path, old_path, before, after_tree, opts \\ []) do
@@ -53,19 +59,28 @@ defmodule AssertCommit.FileChange do
       similarity: Keyword.get(opts, :similarity)
     }
 
-    if binary?(old_text) or binary?(new_text) do
-      %{base | binary?: true}
-    else
-      hunks = Hunk.diff(old_text, new_text)
+    cond do
+      binary?(old_text) or binary?(new_text) ->
+        %{base | binary?: true}
 
-      %{
-        base
-        | hunks: hunks,
-          additions: length(Hunk.added_lines(hunks)),
-          deletions: length(Hunk.removed_lines(hunks))
-      }
+      byte_size(old_text) > @max_diff_bytes or byte_size(new_text) > @max_diff_bytes ->
+        %{base | diffed?: false}
+
+      true ->
+        hunks = Hunk.diff(old_text, new_text)
+
+        %{
+          base
+          | hunks: hunks,
+            additions: length(Hunk.added_lines(hunks)),
+            deletions: length(Hunk.removed_lines(hunks))
+        }
     end
   end
+
+  @doc "Files larger than this (in either version) are not line-diffed."
+  @spec max_diff_bytes() :: pos_integer()
+  def max_diff_bytes, do: @max_diff_bytes
 
   @doc """
   The path of this file in the before tree, or `nil` for additions.
