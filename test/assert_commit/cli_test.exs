@@ -195,6 +195,32 @@ defmodule AssertCommit.CLITest do
     refute out =~ "migrations_reversible — "
   end
 
+  test "--on-error decides whether a crashed rule fails the run", %{repo: repo} do
+    config =
+      write_config(repo, """
+      unless Code.ensure_loaded?(CLITestCrash) do
+        defmodule CLITestCrash do
+          use AssertCommit.RuleSet
+          rule :boom, "boom", fn _ -> raise "kaboom" end
+        end
+      end
+
+      [CLITestCrash]
+      """)
+
+    {1, out} = run(["--repo", repo, "--head", "--no-color", "--config", config])
+    assert out =~ "! boom raised RuntimeError"
+    assert out =~ "1 rule: 1 errored"
+
+    {0, out} =
+      run(["--repo", repo, "--head", "--no-color", "--config", config, "--on-error", "warn"])
+
+    assert out =~ "! boom raised RuntimeError"
+
+    assert {2, "error: unknown --on-error maybe" <> _} =
+             run(["--repo", repo, "--head", "--on-error", "maybe"])
+  end
+
   test "usage and configuration errors exit 2", %{repo: repo} do
     assert {2, "error: unknown arguments: --bogus" <> _} = run(["--bogus"])
 

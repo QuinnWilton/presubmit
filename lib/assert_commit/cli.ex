@@ -21,7 +21,8 @@ defmodule AssertCommit.CLI do
     list: :boolean,
     message: :string,
     message_file: :string,
-    base: :string
+    base: :string,
+    on_error: :string
   ]
 
   @type result :: {exit_status :: 0 | 1 | 2, output :: iodata()}
@@ -78,7 +79,7 @@ defmodule AssertCommit.CLI do
           {config, [Runner.run(commit, config.rules)], ci_note(source, commit, env)}
       end
 
-    status = if Enum.all?(reports, &(Report.status(&1) == :pass)), do: 0, else: 1
+    status = exit_status(reports, on_error(opts))
 
     output =
       case format do
@@ -93,6 +94,25 @@ defmodule AssertCommit.CLI do
       end
 
     {status, output}
+  end
+
+  # A crashed rule is a bug in the tool, not in the commit; hooks ask for it to be a warning.
+  defp exit_status(reports, on_error) do
+    statuses = Enum.map(reports, &Report.status/1)
+
+    cond do
+      :fail in statuses -> 1
+      :error in statuses and on_error == :fail -> 1
+      true -> 0
+    end
+  end
+
+  defp on_error(opts) do
+    case Keyword.get(opts, :on_error, "fail") do
+      "fail" -> :fail
+      "warn" -> :warn
+      other -> raise Config.Error, message: "unknown --on-error #{other}; use fail or warn"
+    end
   end
 
   # With no configuration file the defaults depend on detection, so say what was decided.
@@ -256,6 +276,7 @@ defmodule AssertCommit.CLI do
         --config PATH     rule configuration (default: .assert_commit.exs, or built-in defaults)
         --format FORMAT   text (default) or json
         --[no-]color      force colour on or off
+        --on-error MODE   fail (default) or warn: whether a rule that crashes affects the exit status
         --list            print the configured rule sets and rules
       """
   end

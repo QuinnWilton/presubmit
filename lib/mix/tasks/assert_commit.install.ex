@@ -12,10 +12,15 @@ defmodule Mix.Tasks.AssertCommit.Install do
       mix assert_commit.install --pre-commit   # also a pre-commit hook (content rules, before the editor opens)
       mix assert_commit.install --uninstall    # remove the hooks this task installed
 
-  Hooks live in the repository's hooks directory (`.git/hooks` by default),
-  which is not versioned: each clone runs this once. A hook that was not
-  installed by this task is never overwritten. `git commit --no-verify`
-  bypasses hooks, so keep `mix assert_commit --head` in CI.
+  Run it from the project directory (where `mix.exs` is); in a subdirectory
+  project of a larger repository the hooks `cd` there before running. Hooks
+  live in the repository's hooks directory, which is not versioned: each
+  clone runs this once. A hook that was not installed by this task is never
+  overwritten, and installation is refused when `core.hooksPath` is set.
+
+  The hooks skip, with a note, while a merge is in progress, when amending a
+  merge commit, and when `mix` is not on `PATH`; `git commit --no-verify`
+  bypasses them entirely. Keep `mix assert_commit` in CI as the backstop.
   """
 
   use Mix.Task
