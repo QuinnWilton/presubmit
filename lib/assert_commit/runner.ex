@@ -4,6 +4,7 @@ defmodule AssertCommit.Runner do
   """
 
   alias AssertCommit.{Commit, Git, Rule}
+  alias AssertCommit.Source.Facts
 
   defmodule Result do
     @moduledoc "The outcome of one rule against one change set."
@@ -67,6 +68,11 @@ defmodule AssertCommit.Runner do
     repo
     |> Git.run!(["rev-list", "--reverse", "--no-merges", range])
     |> String.split("\n", trim: true)
-    |> Enum.map(fn sha -> run(Commit.rev(sha, repo: repo), rules) end)
+    |> Enum.map(fn sha ->
+      report = run(Commit.rev(sha, repo: repo), rules)
+      # Facts for this revision's trees are not needed again.
+      Facts.clear_cache()
+      report
+    end)
   end
 end

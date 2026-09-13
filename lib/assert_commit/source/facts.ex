@@ -9,7 +9,9 @@ defmodule AssertCommit.Source.Facts do
   are available.
 
   Facts for git-backed trees are memoised per `{tree_oid, path}` since a
-  tree object never changes.
+  tree object never changes. The cache lives in the calling process and is
+  cleared by `clear_cache/0`, which the runner calls between the commits of
+  a range so a long history does not accumulate every revision's facts.
   """
 
   alias AssertCommit.Tree
@@ -133,15 +135,22 @@ defmodule AssertCommit.Source.Facts do
   def extract(%Tree{oid: oid} = tree, path) do
     key = {__MODULE__, oid, path}
 
-    case :persistent_term.get(key, :miss) do
+    case Process.get(key, :miss) do
       :miss ->
         result = do_extract(tree, path)
-        :persistent_term.put(key, result)
+        Process.put(key, result)
         result
 
       result ->
         result
     end
+  end
+
+  @doc "Drops every cached fact set in the calling process."
+  @spec clear_cache() :: :ok
+  def clear_cache do
+    for {{__MODULE__, _, _} = key, _} <- Process.get(), do: Process.delete(key)
+    :ok
   end
 
   @doc "Extracts facts, returning an empty fact set for missing or unparseable files."
