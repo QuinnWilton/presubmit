@@ -120,12 +120,18 @@ defmodule AssertCommit.Source.FactsTest do
       refute Enum.any?(m.functions, &Function.api?/1)
     end
 
-    test "clause hashes ignore line metadata but not code" do
+    test "clause hashes ignore line metadata and alias spelling, but not code" do
       a = module!("defmodule A do\n  def f, do: 1\nend\n")
       b = module!("defmodule A do\n\n\n  def f, do: 1\nend\n")
       c = module!("defmodule A do\n  def f, do: 2\nend\n")
       assert hd(a.functions).clauses == hd(b.functions).clauses
       refute hd(a.functions).clauses == hd(c.functions).clauses
+
+      full = module!("defmodule A do\n  def f, do: X.Y.g()\nend\n")
+      aliased = module!("defmodule A do\n  alias X.Y\n  def f, do: Y.g()\nend\n")
+      other = module!("defmodule A do\n  alias X.Z\n  def f, do: Z.g()\nend\n")
+      assert hd(full.functions).clauses == hd(aliased.functions).clauses
+      refute hd(full.functions).clauses == hd(other.functions).clauses
     end
   end
 

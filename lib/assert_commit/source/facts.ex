@@ -162,11 +162,20 @@ defmodule AssertCommit.Source.Facts do
     end
   end
 
-  @doc "Extracts facts from source text directly (for tests and synthetic input)."
-  @spec from_source(String.t(), String.t()) :: {:ok, t()} | {:error, term()}
-  def from_source(source, path \\ "nofile.ex") do
+  @doc """
+  Extracts facts from source text directly (for tests and synthetic input).
+
+  With `renames: %{Old => New}`, every resolved module reference — in
+  function bodies and in the modules' own names — is mapped through the
+  renames, so facts from before a rename can be compared with facts from
+  after it.
+  """
+  @spec from_source(String.t(), String.t(), keyword()) :: {:ok, t()} | {:error, term()}
+  def from_source(source, path \\ "nofile.ex", opts \\ []) do
+    renames = Keyword.get(opts, :renames, %{})
+
     with {:ok, ast} <- Code.string_to_quoted(source, file: path, columns: true) do
-      modules = ast |> collect_modules(path, [], %{}) |> Enum.reverse()
+      modules = ast |> collect_modules(path, [], %{renames: renames}) |> Enum.reverse()
       {:ok, %__MODULE__{path: path, modules: modules}}
     end
   rescue
@@ -228,7 +237,7 @@ defmodule AssertCommit.Source.Facts do
 
   defp literal_module(meta, parts, body, path, prefix, env) do
     full = prefix ++ parts
-    name = Elixir.Module.concat(full)
+    name = renamed(Elixir.Module.concat(full), env)
     env = Map.put(env, :__MODULE__, name)
     {items, env} = body |> block_items() |> resolve_aliases(env)
 
@@ -240,10 +249,10 @@ defmodule AssertCommit.Source.Facts do
       uses: uses(items, env),
       behaviours: behaviours(items, env),
       moduledoc: moduledoc(items),
-      functions: functions(items, name, path, moduledoc(items) == false),
+      functions: functions(items, name, path, moduledoc(items) == false, env),
       struct: struct_def(items),
       references: references(body, env, name),
-      aliases: Map.delete(env, :__MODULE__)
+      aliases: env |> Map.delete(:__MODULE__) |> Map.delete(:renames)
     }
 
     nested =
@@ -349,7 +358,7 @@ defmodule AssertCommit.Source.Facts do
 
   # Pending @doc/@deprecated/@impl apply to the next function head. A @spec applies by name and
   # arity; a spec for the full arity of a head with defaults also covers the arities it generates.
-  defp functions(items, module, path, hidden?) do
+  defp functions(items, module, path, hidden?, env) do
     specs =
       for {:@, _, [{:spec, _, [spec]}]} <- items,
           head = spec_head(spec),
@@ -375,7 +384,7 @@ defmodule AssertCommit.Source.Facts do
           {kind, meta, [head | rest]}
           when kind in [:def, :defp, :defmacro, :defmacrop, :defdelegate] ->
             {name, arities} = head_arities(head)
-            clause_hash = :erlang.phash2(strip_meta({head, rest}))
+            clause_hash = :erlang.phash2(normalize({head, rest}, env))
             full_arity = Enum.max(arities)
             delegate? = kind == :defdelegate
             kind = if delegate?, do: :def, else: kind
@@ -432,12 +441,30 @@ defmodule AssertCommit.Source.Facts do
 
   defp spec_head(_), do: nil
 
-  defp strip_meta(ast),
-    do:
-      Macro.prewalk(ast, fn
-        {a, _meta, b} -> {a, [], b}
-        other -> other
-      end)
+  # Clause identity ignores line metadata and expands aliases, so `alias A.B; B.f()` and `A.B.f()`
+  # are the same body, and renaming an alias is not a behaviour change.
+  defp normalize(ast, env) do
+    Macro.prewalk(ast, fn
+      {:__aliases__, _meta, parts} = node when is_list(parts) ->
+        if Enum.all?(parts, &(is_atom(&1) or match?({:__MODULE__, _, _}, &1))),
+          do:
+            {:__aliases__, [],
+             parts
+             |> resolve(env)
+             |> renamed(env)
+             |> Elixir.Module.split()
+             |> Enum.map(&String.to_atom/1)},
+          else: node
+
+      {a, _meta, b} ->
+        {a, [], b}
+
+      other ->
+        other
+    end)
+  end
+
+  defp renamed(module, env), do: Map.get(Map.get(env, :renames, %{}), module, module)
 
   ## References
 

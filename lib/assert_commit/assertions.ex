@@ -464,8 +464,12 @@ defmodule AssertCommit.Assertions do
   end
 
   # Under the rename map, the before side must define exactly the functions the after side does,
-  # and non-Elixir files must be identical.
+  # and non-Elixir files must be textually identical. Elixir files are compared through their
+  # facts with the renames applied at the resolved-module level, so aliases of any spelling match.
   defp move_problems(%Commit{changes: changes, before: before, after: after_tree}, renames) do
+    rename_map = Map.new(renames)
+    substitute = text_substitution(renames)
+
     {before_fns, after_fns, problems} =
       Enum.reduce(changes, {[], [], []}, fn change, {b, a, problems} ->
         before_path = FileChange.before_path(change)
@@ -473,18 +477,15 @@ defmodule AssertCommit.Assertions do
         before_text = if before_path, do: Tree.read!(before, before_path), else: nil
         after_text = if after_path, do: Tree.read!(after_tree, after_path), else: nil
 
-        rewritten =
-          before_text && rename_substitution(renames, before_text, before_path).(before_text)
-
         cond do
           change.binary? ->
             {b, a, problems ++ ["#{change.path} (binary #{change.status})"]}
 
           Path.extname(change.path) in [".ex", ".exs"] ->
-            {b ++ functions_in(rewritten, before_path || change.path),
-             a ++ functions_in(after_text, after_path || change.path), problems}
+            {b ++ functions_in(before_text, before_path || change.path, rename_map),
+             a ++ functions_in(after_text, after_path || change.path, %{}), problems}
 
-          rewritten != nil and after_text != nil and rewritten == after_text ->
+          before_text != nil and after_text != nil and substitute.(before_text) == after_text ->
             {b, a, problems}
 
           true ->
@@ -497,29 +498,12 @@ defmodule AssertCommit.Assertions do
       for(f <- before_fns -- after_fns, do: "#{format_key(f)} (removed or changed)")
   end
 
-  # Rewrites old module names to new ones in `text`. Full names are replaced longest-first so
-  # `A.B` does not clobber `A.B.C`; a trailing `.Upper` means a deeper module, a trailing `.lower`
-  # a function call. Short aliases the file declared for a renamed module (`alias Shop.Cart` then
-  # `Cart.total/1`) are rewritten to the new module's last segment as well.
-  defp rename_substitution(renames, text, path) do
-    shorts =
-      case Facts.from_source(text, path || "nofile.ex") do
-        {:ok, facts} ->
-          for m <- facts.modules,
-              {short, full} <- m.aliases,
-              {^full, new} <- renames,
-              new_short = new |> Module.split() |> List.last() |> String.to_atom(),
-              short != new_short,
-              do: {short, new_short}
-
-        {:error, _} ->
-          []
-      end
-
+  # For non-Elixir files (docs, configs): old names become new ones, longest-first so `A.B` does
+  # not clobber `A.B.C`; a trailing `.Upper` means a deeper module, a trailing `.lower` a call.
+  defp text_substitution(renames) do
     patterns =
-      (renames ++ shorts)
+      renames
       |> Enum.map(fn {old, new} -> {name_text(old), name_text(new)} end)
-      |> Enum.uniq()
       |> Enum.sort_by(fn {old, _} -> -String.length(old) end)
       |> Enum.map(fn {old, new} -> {~r/(?<![\w.])#{Regex.escape(old)}(?!\w|\.[A-Z])/, new} end)
 
@@ -530,10 +514,10 @@ defmodule AssertCommit.Assertions do
 
   defp name_text(atom), do: atom |> Atom.to_string() |> String.replace_prefix("Elixir.", "")
 
-  defp functions_in(nil, _path), do: []
+  defp functions_in(nil, _path, _renames), do: []
 
-  defp functions_in(source, path) do
-    case Facts.from_source(source, path) do
+  defp functions_in(source, path, renames) do
+    case Facts.from_source(source, path, renames: renames) do
       {:ok, facts} ->
         for m <- facts.modules, f <- m.functions, do: {m.name, f.name, f.arity, f.clauses}
 

@@ -56,6 +56,20 @@ defmodule AssertCommit.HooksTest do
     assert {:ok, ^paths} = Hooks.install(repo)
   end
 
+  test "every hook that runs mix shares the guard preamble" do
+    for hook <- ["commit-msg", "pre-commit"] do
+      script = Hooks.script(hook, "apps/web")
+      assert script =~ ~s|root="$(git rev-parse --show-toplevel)"|
+      assert script =~ ~s|cd "$root/apps/web" \|\| exit 1|
+      assert script =~ "MERGE_HEAD"
+      assert script =~ "command -v mix"
+      assert script =~ "--on-error warn"
+    end
+
+    refute Hooks.script("commit-msg", ".") =~ "cd "
+    refute Hooks.script("prepare-commit-msg", "apps/web") =~ "exec mix"
+  end
+
   test "installs a pre-commit hook on request", %{repo: repo} do
     assert {:ok, paths} = Hooks.install(repo, Hooks.default() ++ ["pre-commit"])
     assert "pre-commit" in Enum.map(paths, &Path.basename/1)
