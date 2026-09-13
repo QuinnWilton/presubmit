@@ -72,8 +72,16 @@ jobs:
       # On pull_request events HEAD is a synthetic merge commit; check the PR's own commits instead.
       - if: github.event_name == 'pull_request'
         run: mix assert_commit --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+      # Every pushed commit, not just the tip; a new branch has no `before` to range from.
       - if: github.event_name == 'push'
-        run: mix assert_commit --head
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            mix assert_commit --head
+          else
+            mix assert_commit --range "$BEFORE..$GITHUB_SHA"
+          fi
 
   credo:
     name: Credo
