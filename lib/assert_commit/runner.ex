@@ -50,29 +50,66 @@ defmodule AssertCommit.Runner do
     defp kind({:error, _, _}), do: :error
   end
 
-  @doc "Runs every rule against the change set."
-  @spec run(Commit.t(), [Rule.t()]) :: Report.t()
-  def run(%Commit{} = commit, rules) when is_list(rules) do
-    %Report{
-      commit: commit,
-      results: Enum.map(rules, &%Result{rule: &1, outcome: Rule.run(&1, commit)})
-    }
+  @default_timeout 30_000
+
+  @doc """
+  Runs every rule against the change set.
+
+  Rules run in a worker process so that the facts cache is shared between
+  them. A rule that does not finish within `opts[:timeout]` milliseconds
+  (default 30 seconds) is stopped and reported as an
+  `AssertCommit.RuleTimeoutError`; the remaining rules run in a fresh worker.
+  """
+  @spec run(Commit.t(), [Rule.t()], keyword()) :: Report.t()
+  def run(%Commit{} = commit, rules, opts \\ []) when is_list(rules) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    %Report{commit: commit, results: run_rules(rules, commit, timeout, [])}
+  end
+
+  defp run_rules([], _commit, _timeout, acc), do: Enum.reverse(acc)
+
+  defp run_rules(rules, commit, timeout, acc) do
+    parent = self()
+    ref = make_ref()
+
+    worker =
+      Task.async(fn ->
+        Enum.each(rules, fn rule -> send(parent, {ref, rule.id, Rule.run(rule, commit)}) end)
+        Facts.clear_cache()
+      end)
+
+    collect(rules, worker, ref, commit, timeout, acc)
+  end
+
+  defp collect([], worker, _ref, _commit, _timeout, acc) do
+    Task.await(worker, :infinity)
+    Enum.reverse(acc)
+  end
+
+  defp collect([rule | rest], worker, ref, commit, timeout, acc) do
+    receive do
+      {^ref, id, outcome} when id == rule.id ->
+        collect(rest, worker, ref, commit, timeout, [%Result{rule: rule, outcome: outcome} | acc])
+    after
+      timeout ->
+        Task.shutdown(worker, :brutal_kill)
+        error = %AssertCommit.RuleTimeoutError{rule: rule.id, timeout: timeout}
+
+        run_rules(rest, commit, timeout, [%Result{rule: rule, outcome: {:error, error, []}} | acc])
+    end
   end
 
   @doc """
   Runs every rule against each non-merge commit in `range` (any `git rev-list`
   range, oldest first).
   """
-  @spec run_range(Path.t(), String.t(), [Rule.t()]) :: [Report.t()]
-  def run_range(repo, range, rules) do
+  @spec run_range(Path.t(), String.t(), [Rule.t()], keyword()) :: [Report.t()]
+  def run_range(repo, range, rules, opts \\ []) do
     repo
     |> Git.run!(["rev-list", "--reverse", "--no-merges", range])
     |> String.split("\n", trim: true)
     |> Enum.map(fn sha ->
-      report = run(Commit.rev(sha, repo: repo), rules)
-      # Facts for this revision's trees are not needed again.
-      Facts.clear_cache()
-      report
+      run(Commit.rev(sha, repo: repo), rules, opts)
     end)
   end
 end

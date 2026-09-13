@@ -77,6 +77,13 @@ defmodule AssertCommit.Formatter do
     [paint("  ✗ #{rule.name}", :red, color?) | indent(message)]
   end
 
+  defp result_lines(
+         %Result{rule: rule, outcome: {:error, %AssertCommit.RuleTimeoutError{} = e, _}},
+         color?
+       ) do
+    [paint("  ! #{rule.name}: #{Exception.message(e)}", :red, color?)]
+  end
+
   defp result_lines(%Result{rule: rule, outcome: {:error, exception, stack}}, color?) do
     [
       paint("  ! #{rule.name} raised #{inspect(exception.__struct__)}", :red, color?)

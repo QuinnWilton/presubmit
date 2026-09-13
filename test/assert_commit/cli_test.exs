@@ -234,6 +234,9 @@ defmodule AssertCommit.CLITest do
 
     assert {2, "error: unknown --on-error maybe" <> _} =
              run(["--repo", repo, "--head", "--on-error", "maybe"])
+
+    assert {2, "error: --timeout must be a positive number of seconds" <> _} =
+             run(["--repo", repo, "--head", "--timeout", "0"])
   end
 
   test "usage and configuration errors exit 2", %{repo: repo} do

@@ -22,7 +22,8 @@ defmodule AssertCommit.CLI do
     message: :string,
     message_file: :string,
     base: :string,
-    on_error: :string
+    on_error: :string,
+    timeout: :integer
   ]
 
   @type result :: {exit_status :: 0 | 1 | 2, output :: iodata()}
@@ -64,7 +65,7 @@ defmodule AssertCommit.CLI do
           config =
             load_config(opts, AssertCommit.load(repo: repo, source: {:rev, range_end(range)}))
 
-          {config, Runner.run_range(repo, range, config.rules), []}
+          {config, Runner.run_range(repo, range, config.rules, timeout: timeout(opts)), []}
 
         source ->
           commit =
@@ -76,7 +77,9 @@ defmodule AssertCommit.CLI do
             )
 
           config = load_config(opts, commit)
-          {config, [Runner.run(commit, config.rules)], ci_note(source, commit, env)}
+
+          {config, [Runner.run(commit, config.rules, timeout: timeout(opts))],
+           ci_note(source, commit, env)}
       end
 
     status = exit_status(reports, on_error(opts))
@@ -104,6 +107,17 @@ defmodule AssertCommit.CLI do
       :fail in statuses -> 1
       :error in statuses and on_error == :fail -> 1
       true -> 0
+    end
+  end
+
+  defp timeout(opts) do
+    case Keyword.get(opts, :timeout, 30) do
+      seconds when is_integer(seconds) and seconds > 0 ->
+        seconds * 1000
+
+      other ->
+        raise Config.Error,
+          message: "--timeout must be a positive number of seconds, got #{inspect(other)}"
     end
   end
 
@@ -279,6 +293,7 @@ defmodule AssertCommit.CLI do
         --format FORMAT   text (default) or json
         --[no-]color      force colour on or off
         --on-error MODE   fail (default) or warn: whether a rule that crashes affects the exit status
+        --timeout SECS    stop a rule that runs longer than this (default 30) and report it as an error
         --list            print the configured rule sets and rules
       """
   end

@@ -37,6 +37,30 @@ defmodule AssertCommit.RunnerTest do
     assert Report.status(report) == :error
   end
 
+  test "a rule that runs past the timeout is stopped and the rest still run" do
+    rules = [
+      Rule.new(:quick, "quick", fn _ -> :ok end),
+      Rule.new(:slow, "slow", fn _ -> Process.sleep(:infinity) end),
+      Rule.new(:after, "after", fn _ -> :ok end)
+    ]
+
+    report = Runner.run(Commit.new(after: %{}), rules, timeout: 50)
+
+    assert [
+             %{rule: %{id: :quick}, outcome: :pass},
+             %{
+               rule: %{id: :slow},
+               outcome: {:error, %AssertCommit.RuleTimeoutError{rule: :slow, timeout: 50}, []}
+             },
+             %{rule: %{id: :after}, outcome: :pass}
+           ] = report.results
+
+    assert Report.status(report) == :error
+
+    text = [report] |> Formatter.render(:text) |> IO.iodata_to_binary()
+    assert text =~ "! slow: rule :slow did not finish within 0s and was stopped"
+  end
+
   test "run_range/3 runs every non-merge commit oldest first", %{repo: repo} do
     reports =
       Runner.run_range(
