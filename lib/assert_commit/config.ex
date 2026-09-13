@@ -21,12 +21,18 @@ defmodule AssertCommit.Config do
   ## Defaults
 
   Without a file, `default/1` enables the sets that apply to the project:
-  always `Elixir`, `Hygiene`, `Mix`, `OTP`, `Shape`, the message basics
-  (`no_fixup`, `subject_length`), and `ExUnit`'s `behaviour_changes_tested`;
-  `Phoenix` and `Ecto` when those libraries are loaded in the VM or declared
-  in the examined tree's `mix.exs`; `Changelog` when the tree has a
-  `CHANGELOG.md`. Each set's `requires/0` states the condition, and
-  `t:t/0`'s `:detection` records what was decided and why.
+  always `Hygiene`, `Mix`, `OTP`, `Shape`, `Elixir`'s `moduledoc` and
+  `pure_move`, and the message basics (`no_fixup`, `subject_length`);
+  `Phoenix` and `Ecto` when those libraries are loaded in the VM or present
+  in the examined tree's `mix.exs`/`mix.lock`; `Changelog`'s `release_logged`
+  when the tree has a `CHANGELOG.md`. Each set's `requires/0` states the
+  condition, and `t:t/0`'s `:detection` records what was decided and why.
+
+  The defaults were calibrated against real histories (this workspace's
+  projects and the Elixir repository): what remains does not fail ordinary
+  commits. Rules that encode a policy — `specs`, `removals_deprecated`,
+  `api_changes_logged`, `behaviour_changes_tested`, `tested` — are opt-in
+  through `.assert_commit.exs`.
   """
 
   alias AssertCommit.{Commit, MixFile, Rule, Rules, RuleSet, Tree}
@@ -51,14 +57,16 @@ defmodule AssertCommit.Config do
 
   @default_file ".assert_commit.exs"
 
+  # Calibrated on real histories: a default must not fail an ordinary, reasonable commit. Rules
+  # that encode a team's policy rather than a defect (specs everywhere, deprecate before removing,
+  # changelog per API change, tests with every behaviour change) are opt-in.
   @default_specs [
-    Rules.Elixir,
+    {Rules.Elixir, only: [:moduledoc, :pure_move]},
     Rules.Phoenix,
     Rules.Ecto,
     Rules.OTP,
-    {Rules.ExUnit, only: [:behaviour_changes_tested]},
     Rules.Mix,
-    Rules.Changelog,
+    {Rules.Changelog, only: [:release_logged]},
     {Rules.Message, only: [:no_fixup, :subject_length]},
     Rules.Hygiene,
     Rules.Shape

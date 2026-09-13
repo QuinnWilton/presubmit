@@ -15,7 +15,7 @@ defmodule AssertCommit.CLITest do
     assert out =~ "No .assert_commit.exs; using built-in defaults.\n"
 
     assert out =~
-             ~r/^  enabled: Elixir, Phoenix \(phoenix is a dependency\), Ecto \(ecto_sql is a dependency\), OTP, ExUnit, Mix, Message, Hygiene, Shape\n/m
+             ~r/^  enabled: Elixir, Phoenix \(phoenix is a dependency\), Ecto \(ecto_sql is a dependency\), OTP, Mix, Message, Hygiene, Shape\n/m
 
     assert out =~ ~r/^  not enabled: Changelog \(no CHANGELOG\.md\)\n/m
     refute out =~ "public API changes are recorded"

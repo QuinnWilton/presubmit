@@ -17,7 +17,6 @@ defmodule AssertCommit.ConfigTest do
       assert enabled(config) == [
                Rules.Elixir,
                Rules.OTP,
-               Rules.ExUnit,
                Rules.Mix,
                Rules.Message,
                Rules.Hygiene,
@@ -28,8 +27,11 @@ defmodule AssertCommit.ConfigTest do
       assert config.path == nil
 
       ids = Enum.map(config.rules, &{&1.set, &1.id})
-      assert {Rules.ExUnit, :behaviour_changes_tested} in ids
-      refute {Rules.ExUnit, :tested} in ids
+      assert {Rules.Elixir, :moduledoc} in ids and {Rules.Elixir, :pure_move} in ids
+      refute {Rules.Elixir, :specs} in ids
+      refute {Rules.Elixir, :removals_deprecated} in ids
+      refute Enum.any?(ids, &match?({Rules.ExUnit, _}, &1))
+      refute {Rules.Changelog, :api_changes_logged} in ids
       assert {Rules.Message, :no_fixup} in ids
       refute {Rules.Message, :subject} in ids
     end
@@ -80,7 +82,6 @@ defmodule AssertCommit.ConfigTest do
                Rules.Phoenix,
                Rules.Ecto,
                Rules.OTP,
-               Rules.ExUnit,
                Rules.Mix,
                Rules.Changelog,
                Rules.Message,
