@@ -95,3 +95,38 @@ defmodule AssertCommit.CommitWorktreeTest do
     end
   end
 end
+
+defmodule AssertCommit.GitEnvTest do
+  use ExUnit.Case, async: true
+
+  alias AssertCommit.{FixtureRepo, Git}
+
+  setup do
+    dir =
+      Path.join(System.tmp_dir!(), "assert_commit_gitenv_#{System.unique_integer([:positive])}")
+
+    on_exit(fn -> File.rm_rf!(dir) end)
+    %{repo: FixtureRepo.init!(dir).path}
+  end
+
+  test "the empty tree matches what git computes", %{repo: repo} do
+    assert Git.empty_tree(repo) ==
+             String.trim(FixtureRepo.git!(repo, ["hash-object", "-t", "tree", "/dev/null"]))
+  end
+
+  test "config/2 reads the repository's configuration, and nil when unset", %{repo: repo} do
+    assert Git.config(repo, "user.name") == "Fixture"
+    assert Git.config(repo, "assert.unset") == nil
+  end
+
+  test "plumbing output is unaffected by colour and signature display settings", %{repo: repo} do
+    FixtureRepo.git!(repo, ["config", "color.ui", "always"])
+    FixtureRepo.git!(repo, ["config", "log.showSignature", "true"])
+    repo = FixtureRepo.commit!(%FixtureRepo{path: repo}, message: "one", write: %{"a" => "1\n"})
+    repo = FixtureRepo.commit!(repo, message: "two", write: %{"a" => "2\n", "b" => "b\n"})
+
+    commit = AssertCommit.Commit.head(repo: repo.path)
+    assert commit.message.subject == "two"
+    assert Enum.map(commit.changes, &{&1.status, &1.path}) == [{:modified, "a"}, {:added, "b"}]
+  end
+end

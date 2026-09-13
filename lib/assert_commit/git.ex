@@ -31,8 +31,10 @@ defmodule AssertCommit.Git do
   Runs `git` with `args` inside `repo`, raising `AssertCommit.GitError` on
   a non-zero exit.
 
-  Global and system git config are ignored so that the caller's aliases,
-  signing settings, and hooks can't change plumbing output.
+  The user's git configuration is honoured (so `safe.directory`, credential
+  and transport settings apply); every plumbing call passes the flags that
+  make its output independent of configuration (`-z`, `--no-color`,
+  explicit `--format`, `--no-show-signature`).
   """
   @spec run!(repo(), [String.t()]) :: binary()
   def run!(repo, args) do
@@ -64,6 +66,17 @@ defmodule AssertCommit.Git do
          output: "could not execute git: #{Exception.message(e)}",
          repo: repo
        }}
+  end
+
+  @doc """
+  Reads a git configuration value as git itself would resolve it, or `nil`.
+  """
+  @spec config(repo(), String.t()) :: String.t() | nil
+  def config(repo, key) do
+    case run(repo, ["config", "--get", key]) do
+      {:ok, out} -> String.trim(out)
+      {:error, _} -> nil
+    end
   end
 
   @doc """
@@ -100,14 +113,18 @@ defmodule AssertCommit.Git do
     end
   end
 
+  @sha1_empty_tree "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+  @sha256_empty_tree "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321"
+
   @doc """
   Returns the object id of the empty tree for this repository's hash algorithm.
   """
   @spec empty_tree(repo()) :: oid()
   def empty_tree(repo) do
-    repo
-    |> run!(["hash-object", "-t", "tree", "/dev/null"])
-    |> String.trim()
+    case run(repo, ["rev-parse", "--show-object-format"]) do
+      {:ok, "sha256" <> _} -> @sha256_empty_tree
+      _ -> @sha1_empty_tree
+    end
   end
 
   @typedoc "Metadata for a single commit as read by `commit_info/2`."
@@ -127,7 +144,8 @@ defmodule AssertCommit.Git do
   def commit_info(repo, rev) do
     format = Enum.join(~w(%H %T %P %an %ae %aI %cn %ce %cI %B), "%x00")
 
-    with {:ok, out} <- run(repo, ["log", "-1", "--format=" <> format, rev, "--"]) do
+    with {:ok, out} <-
+           run(repo, ["log", "-1", "--no-show-signature", "--format=" <> format, rev, "--"]) do
       [sha, tree, parents, an, ae, ad, cn, ce, cd, body] = String.split(out, "\0", parts: 10)
 
       {:ok,
@@ -232,7 +250,17 @@ defmodule AssertCommit.Git do
   """
   @spec diff_trees(repo(), oid(), oid()) :: {:ok, [raw_entry()]} | {:error, GitError.t()}
   def diff_trees(repo, before, after_tree) do
-    args = ["diff-tree", "-r", "-z", "-M", "--raw", "--no-commit-id", before, after_tree]
+    args = [
+      "diff-tree",
+      "-r",
+      "-z",
+      "-M",
+      "--raw",
+      "--no-color",
+      "--no-commit-id",
+      before,
+      after_tree
+    ]
 
     with {:ok, out} <- run(repo, args) do
       {:ok, parse_raw(String.split(out, "\0", trim: true))}
@@ -283,11 +311,6 @@ defmodule AssertCommit.Git do
   end
 
   defp isolated_env do
-    [
-      {"GIT_CONFIG_GLOBAL", "/dev/null"},
-      {"GIT_CONFIG_NOSYSTEM", "1"},
-      {"GIT_TERMINAL_PROMPT", "0"},
-      {"LC_ALL", "C"}
-    ]
+    [{"GIT_TERMINAL_PROMPT", "0"}, {"LC_ALL", "C"}]
   end
 end
