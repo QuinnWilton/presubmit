@@ -29,7 +29,9 @@ defmodule AssertCommit.Rules.Message do
   rule(
     :no_fixup,
     "no fixup!/squash!/amend! commits",
-    &refute_subject(&1, ~r/^(fixup|squash|amend)!/), sources: [:head, :rev])
+    &refute_subject(&1, ~r/^(fixup|squash|amend)!/),
+    sources: [:head, :rev]
+  )
 
   rule :subject_length, "subject fits the configured length", fn commit, opts ->
     unless_exempt(commit, opts, fn ->

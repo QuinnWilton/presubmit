@@ -13,13 +13,24 @@ defmodule AssertCommit.FileChangeTest do
   end
 
   test "submodule entries are not listed as files" do
-    dir = Path.join(System.tmp_dir!(), "assert_commit_gitlink_#{System.unique_integer([:positive])}")
+    dir =
+      Path.join(System.tmp_dir!(), "assert_commit_gitlink_#{System.unique_integer([:positive])}")
+
     on_exit(fn -> File.rm_rf!(dir) end)
     inner = FixtureRepo.init!(Path.join(dir, "inner"))
     FixtureRepo.commit!(inner, message: "inner", write: %{"i.txt" => "i\n"})
     outer = FixtureRepo.init!(Path.join(dir, "outer"))
 
-    FixtureRepo.git!(outer.path, ["-c", "protocol.file.allow=always", "submodule", "add", "-q", inner.path, "vendor/inner"])
+    FixtureRepo.git!(outer.path, [
+      "-c",
+      "protocol.file.allow=always",
+      "submodule",
+      "add",
+      "-q",
+      inner.path,
+      "vendor/inner"
+    ])
+
     outer = FixtureRepo.commit!(outer, message: "add submodule", write: %{"a.txt" => "a\n"})
 
     commit = Commit.head(repo: outer.path)
