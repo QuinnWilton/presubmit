@@ -29,6 +29,8 @@ defmodule AssertCommit.Source.Facts do
       doc: nil,
       deprecated?: false,
       impl?: false,
+      delegate?: false,
+      module_hidden?: false,
       clauses: []
     ]
 
@@ -45,6 +47,8 @@ defmodule AssertCommit.Source.Facts do
             doc: nil | false | :present,
             deprecated?: boolean(),
             impl?: boolean(),
+            delegate?: boolean(),
+            module_hidden?: boolean(),
             clauses: [non_neg_integer()]
           }
 
@@ -53,11 +57,12 @@ defmodule AssertCommit.Source.Facts do
     def public?(%__MODULE__{kind: kind}), do: kind in [:def, :defmacro]
 
     @doc """
-    Whether the function is part of the module's documented API: public and
-    not marked `@doc false`.
+    Whether the function is part of the module's documented API: public, not
+    marked `@doc false`, and not in a module marked `@moduledoc false`.
     """
     @spec api?(t()) :: boolean()
-    def api?(%__MODULE__{doc: doc} = function), do: public?(function) and doc != false
+    def api?(%__MODULE__{doc: doc, module_hidden?: hidden?} = function),
+      do: public?(function) and doc != false and not hidden?
 
     @doc "Identity used for diffing: `{module, name, arity}`."
     @spec key(t()) :: {module(), atom(), arity()}
@@ -226,7 +231,7 @@ defmodule AssertCommit.Source.Facts do
       uses: uses(items, env),
       behaviours: behaviours(items, env),
       moduledoc: moduledoc(items),
-      functions: functions(items, name, path),
+      functions: functions(items, name, path, moduledoc(items) == false),
       struct: struct_def(items),
       references: references(body, env, name),
       aliases: Map.delete(env, :__MODULE__)
@@ -335,7 +340,7 @@ defmodule AssertCommit.Source.Facts do
 
   # Pending @doc/@deprecated/@impl apply to the next function head. A @spec applies by name and
   # arity; a spec for the full arity of a head with defaults also covers the arities it generates.
-  defp functions(items, module, path) do
+  defp functions(items, module, path, hidden?) do
     specs =
       for {:@, _, [{:spec, _, [spec]}]} <- items,
           head = spec_head(spec),
@@ -358,10 +363,13 @@ defmodule AssertCommit.Source.Facts do
           {:@, _, [{:deprecated, _, [_]}]} ->
             {acc, %{pending | deprecated?: true}}
 
-          {kind, meta, [head | rest]} when kind in [:def, :defp, :defmacro, :defmacrop] ->
+          {kind, meta, [head | rest]}
+          when kind in [:def, :defp, :defmacro, :defmacrop, :defdelegate] ->
             {name, arities} = head_arities(head)
             clause_hash = :erlang.phash2(strip_meta({head, rest}))
             full_arity = Enum.max(arities)
+            delegate? = kind == :defdelegate
+            kind = if delegate?, do: :def, else: kind
 
             acc =
               Enum.reduce(arities, acc, fn arity, acc ->
@@ -381,6 +389,8 @@ defmodule AssertCommit.Source.Facts do
                     doc: pending.doc,
                     deprecated?: pending.deprecated?,
                     impl?: pending.impl?,
+                    delegate?: delegate?,
+                    module_hidden?: hidden?,
                     clauses: [clause_hash]
                   },
                   fn f -> %{f | clauses: f.clauses ++ [clause_hash]} end

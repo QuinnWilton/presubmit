@@ -27,7 +27,7 @@ defmodule AssertCommit.Scenarios.ShapeTest do
       [{_, f}] = elixir_diff(commit).functions.body_changed
       assert_fail(run_rule(Rules.Elixir, :pure_move, commit), message)
       assert message =~ "renames files, so it must contain nothing else"
-      assert message =~ "#{inspect(f.module)}.#{f.name}/#{f.arity} (body changed, line #{f.line})"
+      assert message =~ "#{inspect(f.module)}.#{f.name}/#{f.arity} (added or changed)"
     end
 
     test "commits with no renames pass trivially", %{repo: repo} do

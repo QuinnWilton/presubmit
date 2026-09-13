@@ -101,6 +101,25 @@ defmodule AssertCommit.Source.FactsTest do
                [{:f, 1, true, false}, {:f, 2, true, false}, {:init, 1, false, true}]
     end
 
+    test "defdelegate is a public function; @moduledoc false hides a module's functions from the API" do
+      m =
+        module!("""
+        defmodule A do
+          @moduledoc false
+          defdelegate size(x), to: Enum, as: :count
+          def f, do: 1
+        end
+        """)
+
+      assert [
+               %{name: :size, arity: 1, kind: :def, delegate?: true, module_hidden?: true},
+               %{name: :f, module_hidden?: true}
+             ] = m.functions
+
+      assert Enum.all?(m.functions, &Function.public?/1)
+      refute Enum.any?(m.functions, &Function.api?/1)
+    end
+
     test "clause hashes ignore line metadata but not code" do
       a = module!("defmodule A do\n  def f, do: 1\nend\n")
       b = module!("defmodule A do\n\n\n  def f, do: 1\nend\n")

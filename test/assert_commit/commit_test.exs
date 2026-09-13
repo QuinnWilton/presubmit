@@ -95,6 +95,66 @@ defmodule AssertCommit.CommitTest do
     end
   end
 
+  describe "assert_pure_move/1 under the rename map" do
+    @before %{
+      "lib/shop/cart.ex" =>
+        "defmodule Shop.Cart do\n  def total(items), do: Enum.sum(items)\nend\n",
+      "lib/shop/checkout.ex" =>
+        "defmodule Shop.Checkout do\n  alias Shop.Cart\n  def run(items), do: Shop.Cart.total(items) + Cart.total([])\nend\n",
+      "lib/shop/cart/item.ex" => "defmodule Shop.Cart.Item do\n  defstruct [:price]\nend\n",
+      "README.md" => "Use `Shop.Cart.total/1`.\n"
+    }
+
+    defp moved(extra \\ %{}) do
+      after_files =
+        Map.merge(
+          %{
+            "lib/shop/basket.ex" =>
+              "defmodule Shop.Basket do\n  def total(items), do: Enum.sum(items)\nend\n",
+            "lib/shop/checkout.ex" =>
+              "defmodule Shop.Checkout do\n  alias Shop.Basket\n  def run(items), do: Shop.Basket.total(items) + Basket.total([])\nend\n",
+            "lib/shop/cart/item.ex" => "defmodule Shop.Cart.Item do\n  defstruct [:price]\nend\n",
+            "README.md" => "Use `Shop.Basket.total/1`.\n"
+          },
+          extra
+        )
+
+      Commit.new(
+        before: @before,
+        after: after_files,
+        renames: [{"lib/shop/cart.ex", "lib/shop/basket.ex"}]
+      )
+    end
+
+    test "callers, aliases, and docs updated for the new name are part of the move" do
+      commit = moved()
+      assert modules_renamed(commit) == [{Shop.Cart, Shop.Basket}]
+      # Shop.Cart.Item keeps its name: the substitution must not touch deeper modules.
+      assert modules_added(commit) == [] and modules_removed(commit) == []
+      assert_pure_move(commit)
+    end
+
+    test "a behaviour change hidden in the move is reported" do
+      commit =
+        moved(%{
+          "lib/shop/checkout.ex" =>
+            "defmodule Shop.Checkout do\n  alias Shop.Basket\n  def run(items), do: Shop.Basket.total(items) + Basket.total([]) + 1\nend\n"
+        })
+
+      error = assert_raise AssertCommit.Violation, fn -> assert_pure_move(commit) end
+      assert error.message =~ "Shop.Checkout.run/1 (added or changed)"
+      assert error.message =~ "Shop.Checkout.run/1 (removed or changed)"
+    end
+
+    test "an unrelated file change is reported" do
+      commit = moved(%{"README.md" => "Use `Shop.Basket.total/1`. Also new prose.\n"})
+
+      assert_raise AssertCommit.Violation,
+                   ~r/README\.md \(modified, not a rename-only change\)/,
+                   fn -> assert_pure_move(commit) end
+    end
+  end
+
   describe "false positives the adapters must not produce" do
     import AssertCommit.Assertions.{Ecto, OTP, Phoenix}
 

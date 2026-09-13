@@ -46,7 +46,7 @@ defmodule AssertCommit.Assertions do
 
   import AssertCommit.Assertions.Flunk, only: [flunk: 1, indent: 1]
 
-  alias AssertCommit.{Commit, FileChange, Paths, Pattern, Query}
+  alias AssertCommit.{Commit, FileChange, Paths, Pattern, Query, Tree}
   alias AssertCommit.Source.Facts
   alias AssertCommit.Source.Facts.Function
 
@@ -414,43 +414,136 @@ defmodule AssertCommit.Assertions do
   end
 
   @doc """
-  Asserts that a commit containing renames is a pure move: every file change
-  is a rename, every module change is a rename, and no function was added,
-  removed, or had its body changed.
+  Asserts that a commit containing renames is a pure move.
+
+  Moving a module means renaming its file, its `defmodule` line, and every
+  reference to it — in callers, tests, and docs. All of that is allowed;
+  anything else is not. The check compares the before and after sides
+  *under the rename map*: every renamed module's old name is rewritten to
+  the new one on the before side, and then Elixir files must define the same
+  functions with the same bodies, and other files must be textually
+  identical.
 
   Commits with no renames pass trivially, so this can be applied to every
   commit to enforce "moves are their own commit".
   """
   @spec assert_pure_move(Commit.t()) :: :ok
   def assert_pure_move(%Commit{changes: changes} = commit) do
-    if Enum.any?(changes, &(&1.status == :renamed)) do
-      diff = Query.elixir_diff(commit)
+    renames = Query.modules_renamed(commit)
 
-      problems =
-        for(c <- changes, c.status != :renamed, do: "#{c.path} (#{c.status})") ++
-          Enum.map(diff.modules.added, &"#{inspect(&1.name)} (module added)") ++
-          Enum.map(diff.modules.removed, &"#{inspect(&1.name)} (module removed)") ++
-          Enum.map(diff.functions.added, &"#{format_function(&1)} (added)") ++
-          Enum.map(diff.functions.removed, &"#{format_function(&1)} (removed)") ++
-          Enum.map(diff.functions.body_changed, fn {_, f} ->
-            "#{format_function(f)} (body changed, line #{f.line})"
-          end)
+    cond do
+      renames == [] and not Enum.any?(changes, &(&1.status == :renamed)) ->
+        :ok
 
-      case problems do
-        [] ->
-          :ok
+      renames == [] ->
+        # Files moved but no module changed its name: the move must carry no other change at all.
+        problems =
+          for(c <- changes, c.status != :renamed, do: "#{c.path} (#{c.status})") ++
+            for(
+              c <- changes,
+              c.status == :renamed,
+              c.additions + c.deletions > 0,
+              do: "#{c.path} (edited)"
+            )
 
-        _ ->
-          flunk(
-            ["This commit renames files, so it must contain nothing else. It also has:"] ++
-              indent(problems) ++
-              ["", "Land the move on its own and edit the moved code in a separate commit."]
-          )
-      end
-    else
-      :ok
+        report_move(problems)
+
+      true ->
+        report_move(move_problems(commit, renames))
     end
   end
+
+  defp report_move([]), do: :ok
+
+  defp report_move(problems) do
+    flunk(
+      ["This commit renames files, so it must contain nothing else. It also has:"] ++
+        indent(problems) ++
+        ["", "Land the move on its own and edit the moved code in a separate commit."]
+    )
+  end
+
+  # Under the rename map, the before side must define exactly the functions the after side does,
+  # and non-Elixir files must be identical.
+  defp move_problems(%Commit{changes: changes, before: before, after: after_tree}, renames) do
+    {before_fns, after_fns, problems} =
+      Enum.reduce(changes, {[], [], []}, fn change, {b, a, problems} ->
+        before_path = FileChange.before_path(change)
+        after_path = FileChange.after_path(change)
+        before_text = if before_path, do: Tree.read!(before, before_path), else: nil
+        after_text = if after_path, do: Tree.read!(after_tree, after_path), else: nil
+
+        rewritten =
+          before_text && rename_substitution(renames, before_text, before_path).(before_text)
+
+        cond do
+          change.binary? ->
+            {b, a, problems ++ ["#{change.path} (binary #{change.status})"]}
+
+          Path.extname(change.path) in [".ex", ".exs"] ->
+            {b ++ functions_in(rewritten, before_path || change.path),
+             a ++ functions_in(after_text, after_path || change.path), problems}
+
+          rewritten != nil and after_text != nil and rewritten == after_text ->
+            {b, a, problems}
+
+          true ->
+            {b, a, problems ++ ["#{change.path} (#{change.status}, not a rename-only change)"]}
+        end
+      end)
+
+    problems ++
+      for(f <- after_fns -- before_fns, do: "#{format_key(f)} (added or changed)") ++
+      for(f <- before_fns -- after_fns, do: "#{format_key(f)} (removed or changed)")
+  end
+
+  # Rewrites old module names to new ones in `text`. Full names are replaced longest-first so
+  # `A.B` does not clobber `A.B.C`; a trailing `.Upper` means a deeper module, a trailing `.lower`
+  # a function call. Short aliases the file declared for a renamed module (`alias Shop.Cart` then
+  # `Cart.total/1`) are rewritten to the new module's last segment as well.
+  defp rename_substitution(renames, text, path) do
+    shorts =
+      case Facts.from_source(text, path || "nofile.ex") do
+        {:ok, facts} ->
+          for m <- facts.modules,
+              {short, full} <- m.aliases,
+              {^full, new} <- renames,
+              new_short = new |> Module.split() |> List.last() |> String.to_atom(),
+              short != new_short,
+              do: {short, new_short}
+
+        {:error, _} ->
+          []
+      end
+
+    patterns =
+      (renames ++ shorts)
+      |> Enum.map(fn {old, new} -> {name_text(old), name_text(new)} end)
+      |> Enum.uniq()
+      |> Enum.sort_by(fn {old, _} -> -String.length(old) end)
+      |> Enum.map(fn {old, new} -> {~r/(?<![\w.])#{Regex.escape(old)}(?!\w|\.[A-Z])/, new} end)
+
+    fn text ->
+      Enum.reduce(patterns, text, fn {regex, new}, acc -> Regex.replace(regex, acc, new) end)
+    end
+  end
+
+  defp name_text(atom), do: atom |> Atom.to_string() |> String.replace_prefix("Elixir.", "")
+
+  defp functions_in(nil, _path), do: []
+
+  defp functions_in(source, path) do
+    case Facts.from_source(source, path) do
+      {:ok, facts} ->
+        for m <- facts.modules, f <- m.functions, do: {m.name, f.name, f.arity, f.clauses}
+
+      {:error, _} ->
+        [{:unparsed, path, 0, []}]
+    end
+  end
+
+  defp format_key({:unparsed, path, _, _}), do: "#{path} (unparsed)"
+  defp format_key({m, f, a, _}), do: "#{inspect(m)}.#{f}/#{a}"
 
   defp format_function(%Function{module: m, name: f, arity: a}), do: "#{inspect(m)}.#{f}/#{a}"
 

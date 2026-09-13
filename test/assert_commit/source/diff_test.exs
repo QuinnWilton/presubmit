@@ -83,6 +83,24 @@ defmodule AssertCommit.Source.DiffTest do
     assert Diff.behaviour_changed?(d)
   end
 
+  test "functions in a @moduledoc false module and defdelegates are diffed correctly" do
+    d =
+      diff(
+        %{
+          "lib/a.ex" => "defmodule A do\n  @moduledoc false\n  def f, do: 1\nend\n",
+          "lib/b.ex" => "defmodule B do\n  defdelegate g(x), to: Enum, as: :count\nend\n"
+        },
+        %{
+          "lib/a.ex" => "defmodule A do\n  @moduledoc false\n  def h, do: 1\nend\n",
+          "lib/b.ex" => "defmodule B do\nend\n"
+        }
+      )
+
+    assert Diff.public_removed(d) == [{B, :g, 1}]
+    assert Diff.public_added(d) == []
+    assert Enum.map(d.functions.added, & &1.name) == [:h]
+  end
+
   test "struct fields added and removed" do
     d =
       diff(%{"lib/a.ex" => "defmodule A do\n  defstruct [:x, :y]\nend\n"}, %{
