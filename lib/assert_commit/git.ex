@@ -246,6 +246,34 @@ defmodule AssertCommit.Git do
   end
 
   @doc """
+  Reads many blobs of `tree` in one process: `git archive` of the given paths,
+  extracted in memory. Every path must exist in the tree (git refuses a
+  pathspec that matches nothing); blobs excluded by `export-ignore` are
+  simply absent from the result.
+  """
+  @spec archive(repo(), oid(), [String.t()]) ::
+          {:ok, %{optional(String.t()) => binary()}} | {:error, GitError.t()}
+  def archive(_repo, _tree, []), do: {:ok, %{}}
+
+  def archive(repo, tree, paths) do
+    args = ["archive", "--format=tar", tree, "--" | paths]
+
+    case System.cmd("git", args, cd: repo, env: isolated_env()) do
+      {tar, 0} ->
+        case :erl_tar.extract({:binary, tar}, [:memory]) do
+          {:ok, entries} ->
+            {:ok, Map.new(entries, fn {name, contents} -> {to_string(name), contents} end)}
+
+          {:error, reason} ->
+            {:error, %GitError{command: args, status: 0, output: inspect(reason), repo: repo}}
+        end
+
+      {output, status} ->
+        {:error, %GitError{command: args, status: status, output: output, repo: repo}}
+    end
+  end
+
+  @doc """
   Diffs two trees with rename detection, returning one entry per changed path.
   """
   @spec diff_trees(repo(), oid(), oid()) :: {:ok, [raw_entry()]} | {:error, GitError.t()}

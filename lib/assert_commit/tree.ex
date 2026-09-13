@@ -10,12 +10,14 @@ defmodule AssertCommit.Tree do
   alias AssertCommit.Git
 
   @enforce_keys [:paths, :reader, :oid]
-  defstruct [:paths, :reader, :oid]
+  defstruct [:paths, :reader, :oid, repo: nil, blobs: %{}]
 
   @type t :: %__MODULE__{
           paths: MapSet.t(String.t()),
           reader: (String.t() -> {:ok, binary()} | :error),
-          oid: String.t() | nil
+          oid: String.t() | nil,
+          repo: Path.t() | nil,
+          blobs: %{optional(String.t()) => String.t()}
         }
 
   @doc """
@@ -24,15 +26,18 @@ defmodule AssertCommit.Tree do
   @spec from_git(Path.t(), Git.oid()) :: t()
   def from_git(repo, oid) do
     # `ls-tree -r` also lists submodule entries (type `commit`); only blobs can be read.
-    paths =
+    blobs =
       for entry <- Git.run!(repo, ["ls-tree", "-r", "-z", oid]) |> String.split("\0", trim: true),
           [meta, path] <- [String.split(entry, "\t", parts: 2)],
-          [_mode, "blob", _oid] <- [String.split(meta, " ")],
-          do: path
+          [_mode, "blob", blob] <- [String.split(meta, " ")],
+          into: %{},
+          do: {path, blob}
 
     %__MODULE__{
       oid: oid,
-      paths: MapSet.new(paths),
+      repo: repo,
+      paths: blobs |> Map.keys() |> MapSet.new(),
+      blobs: blobs,
       reader: fn path -> Git.read_blob(repo, oid, path) end
     }
   end
@@ -48,6 +53,40 @@ defmodule AssertCommit.Tree do
       reader: fn path -> Map.fetch(files, path) end
     }
   end
+
+  @doc """
+  Returns a tree whose reads of `paths` are served from memory, fetched in
+  one `git archive` call. Other paths still go through git. In-memory trees
+  are returned unchanged.
+
+  Reading many files one `cat-file` at a time is what dominates the cost of
+  tree-wide discovery, so anything about to read a batch should prefetch it.
+  """
+  @spec prefetch(t(), [String.t()]) :: t()
+  def prefetch(%__MODULE__{repo: nil} = tree, _paths), do: tree
+
+  def prefetch(%__MODULE__{repo: repo, oid: oid, reader: reader, paths: known} = tree, paths) do
+    case paths |> Enum.filter(&MapSet.member?(known, &1)) |> Enum.uniq() do
+      [] ->
+        tree
+
+      wanted ->
+        case Git.archive(repo, oid, wanted) do
+          {:ok, blobs} ->
+            %{
+              tree
+              | reader: fn path -> with :error <- Map.fetch(blobs, path), do: reader.(path) end
+            }
+
+          {:error, _} ->
+            tree
+        end
+    end
+  end
+
+  @doc "The blob object id of `path`, or nil for in-memory trees and missing paths."
+  @spec blob(t(), String.t()) :: String.t() | nil
+  def blob(%__MODULE__{blobs: blobs}, path), do: Map.get(blobs, path)
 
   @doc """
   Every path in the tree, sorted.

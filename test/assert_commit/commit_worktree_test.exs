@@ -130,3 +130,32 @@ defmodule AssertCommit.GitEnvTest do
     assert Enum.map(commit.changes, &{&1.status, &1.path}) == [{:modified, "a"}, {:added, "b"}]
   end
 end
+
+defmodule AssertCommit.TreePrefetchTest do
+  use ExUnit.Case, async: true
+
+  alias AssertCommit.{Commit, Fixtures, Git, Tree}
+
+  setup_all do: %{repo: Fixtures.repo("phoenix")}
+
+  test "prefetched reads match per-file reads and unknown paths fall back", %{repo: repo} do
+    commit = Commit.rev("scenario/routed_controller", repo: repo)
+    tree = commit.after
+    paths = Tree.paths(tree)
+
+    fetched = Tree.prefetch(tree, paths ++ ["not/in/tree.ex"])
+    assert fetched.oid == tree.oid and fetched.repo == repo
+
+    for path <- paths, do: assert(Tree.read(fetched, path) == Tree.read(tree, path))
+    assert Tree.read(fetched, "not/in/tree.ex") == :error
+    assert Tree.prefetch(Tree.from_map(%{"a" => "1"}), ["a"]).repo == nil
+  end
+
+  test "archive/3 reads only the requested blobs", %{repo: repo} do
+    {:ok, oid} = Git.rev_parse(repo, "main^{tree}")
+    assert {:ok, blobs} = Git.archive(repo, oid, ["mix.exs", "lib/demo_web/router.ex"])
+    assert Map.keys(blobs) |> Enum.sort() == ["lib/demo_web/router.ex", "mix.exs"]
+    assert blobs["mix.exs"] =~ "defmodule Demo.MixProject"
+    assert {:ok, %{}} = Git.archive(repo, oid, [])
+  end
+end

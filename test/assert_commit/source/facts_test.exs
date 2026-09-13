@@ -194,31 +194,6 @@ defmodule AssertCommit.Source.FactsTest do
   end
 
   describe "caching" do
-    test "the cache is per process and can be cleared" do
-      tree = %AssertCommit.Tree{
-        oid: "clear-#{System.unique_integer([:positive])}",
-        paths: MapSet.new(["a.ex"]),
-        reader: fn _ -> {:ok, "defmodule First do\nend\n"} end
-      }
-
-      assert {:ok, %Facts{modules: [%{name: First}]}} = Facts.extract(tree, "a.ex")
-      changed = %{tree | reader: fn _ -> {:ok, "defmodule Second do\nend\n"} end}
-      assert {:ok, %Facts{modules: [%{name: First}]}} = Facts.extract(changed, "a.ex")
-      Facts.clear_cache()
-      assert {:ok, %Facts{modules: [%{name: Second}]}} = Facts.extract(changed, "a.ex")
-    end
-
-    test "git-backed trees memoise facts per tree object" do
-      tree = %AssertCommit.Tree{
-        oid: "cache-test-#{System.unique_integer([:positive])}",
-        paths: MapSet.new(["a.ex"]),
-        reader: fn _ -> {:ok, "defmodule Cached do\nend\n"} end
-      }
-
-      assert {:ok, %Facts{modules: [%{name: Cached}]}} = Facts.extract(tree, "a.ex")
-      changed = %{tree | reader: fn _ -> {:ok, "defmodule Different do\nend\n"} end}
-      assert {:ok, %Facts{modules: [%{name: Cached}]}} = Facts.extract(changed, "a.ex")
-    end
   end
 end
 

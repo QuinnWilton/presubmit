@@ -4,7 +4,6 @@ defmodule AssertCommit.Runner do
   """
 
   alias AssertCommit.{Commit, Git, Rule}
-  alias AssertCommit.Source.Facts
 
   defmodule Result do
     @moduledoc "The outcome of one rule against one change set."
@@ -55,8 +54,7 @@ defmodule AssertCommit.Runner do
   @doc """
   Runs every rule against the change set.
 
-  Rules run in a worker process so that the facts cache is shared between
-  them. A rule that does not finish within `opts[:timeout]` milliseconds
+  Rules run in a worker process, so a rule that does not finish within `opts[:timeout]` milliseconds
   (default 30 seconds) is stopped and reported as an
   `AssertCommit.RuleTimeoutError`; the remaining rules run in a fresh worker.
   """
@@ -75,7 +73,6 @@ defmodule AssertCommit.Runner do
     worker =
       Task.async(fn ->
         Enum.each(rules, fn rule -> send(parent, {ref, rule.id, Rule.run(rule, commit)}) end)
-        Facts.clear_cache()
       end)
 
     collect(rules, worker, ref, commit, timeout, acc)

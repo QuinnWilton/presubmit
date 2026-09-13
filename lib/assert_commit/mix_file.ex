@@ -53,27 +53,32 @@ defmodule AssertCommit.MixFile do
   @doc "Dependencies declared by every `mix.exs` in the tree (umbrella apps included), deduplicated by name."
   @spec all_deps(Tree.t()) :: [dep()]
   def all_deps(%Tree{} = tree) do
-    tree
-    |> project_files(AssertCommit.Paths.mix_files())
-    |> Enum.flat_map(&deps(tree, &1))
-    |> Enum.uniq_by(& &1.name)
+    paths = project_files(tree, AssertCommit.Paths.mix_files())
+    tree = Tree.prefetch(tree, paths)
+    paths |> Enum.flat_map(&deps(tree, &1)) |> Enum.uniq_by(& &1.name)
   end
 
   @doc "Package names present in every `mix.lock` in the tree."
   @spec all_locked(Tree.t()) :: [atom()]
   def all_locked(%Tree{} = tree) do
-    tree
-    |> project_files(AssertCommit.Paths.lock_files())
-    |> Enum.flat_map(&locked(tree, &1))
-    |> Enum.uniq()
+    paths = project_files(tree, AssertCommit.Paths.lock_files())
+    tree = Tree.prefetch(tree, paths)
+    paths |> Enum.flat_map(&locked(tree, &1)) |> Enum.uniq()
   end
 
-  @doc "Paths in the tree matching `pattern`, excluding vendored dependencies."
+  @doc """
+  Paths in the tree matching `pattern`, excluding vendored dependencies and
+  test fixtures (a `mix.exs` under `test/` describes a fixture project, not
+  this one).
+  """
   @spec project_files(Tree.t(), Regex.t()) :: [String.t()]
   def project_files(%Tree{} = tree, pattern) do
     tree
     |> Tree.paths()
-    |> Enum.filter(&(Regex.match?(pattern, &1) and not AssertCommit.Paths.vendored?(&1)))
+    |> Enum.filter(fn path ->
+      Regex.match?(pattern, path) and not AssertCommit.Paths.vendored?(path) and
+        not Regex.match?(AssertCommit.Paths.test(), path)
+    end)
   end
 
   defp parse(tree, path) do

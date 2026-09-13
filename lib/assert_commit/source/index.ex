@@ -16,10 +16,14 @@ defmodule AssertCommit.Source.Index do
   @doc "Every module defined in files of `tree` matching `pattern`."
   @spec modules(Tree.t(), Pattern.t()) :: [Module.t()]
   def modules(%Tree{} = tree, pattern \\ AssertCommit.Paths.elixir_source()) do
-    tree
-    |> Tree.paths()
-    |> Enum.filter(&(Path.extname(&1) in [".ex", ".exs"] and Pattern.matches?(&1, pattern)))
-    |> Enum.flat_map(&Facts.extract!(tree, &1).modules)
+    paths =
+      tree
+      |> Tree.paths()
+      |> Enum.filter(&(Path.extname(&1) in [".ex", ".exs"] and Pattern.matches?(&1, pattern)))
+
+    # Only paths not already in the facts cache need reading; fetch those in one go.
+    tree = Tree.prefetch(tree, Enum.reject(paths, &Facts.cached?(tree, &1)))
+    Enum.flat_map(paths, &Facts.extract!(tree, &1).modules)
   end
 
   @doc "The module named `name` in `tree`, if any file matching `pattern` defines it."

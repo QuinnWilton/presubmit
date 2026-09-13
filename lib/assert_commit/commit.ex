@@ -85,8 +85,8 @@ defmodule AssertCommit.Commit do
           raise MergeCommitError, sha: info.sha, parents: parents
       end
 
-    before = Tree.from_git(repo, before_oid)
-    after_tree = Tree.from_git(repo, info.tree)
+    {before, after_tree, changes} =
+      git_changes(repo, Tree.from_git(repo, before_oid), Tree.from_git(repo, info.tree))
 
     with_diff(%__MODULE__{
       source: :rev,
@@ -98,7 +98,7 @@ defmodule AssertCommit.Commit do
       message: Message.parse(info.body),
       before: before,
       after: after_tree,
-      changes: git_changes(repo, before, after_tree)
+      changes: changes
     })
   end
 
@@ -134,8 +134,8 @@ defmodule AssertCommit.Commit do
         {:error, error} -> raise error
       end
 
-    before = Tree.from_git(repo, before_oid)
-    after_tree = Tree.from_git(repo, after_oid)
+    {before, after_tree, changes} =
+      git_changes(repo, Tree.from_git(repo, before_oid), Tree.from_git(repo, after_oid))
 
     with_diff(%__MODULE__{
       source: :staged,
@@ -143,7 +143,7 @@ defmodule AssertCommit.Commit do
       base: base,
       before: before,
       after: after_tree,
-      changes: git_changes(repo, before, after_tree)
+      changes: changes
     })
   end
 
@@ -213,6 +213,7 @@ defmodule AssertCommit.Commit do
 
   defp repo_path(opts), do: opts |> Keyword.get(:repo, File.cwd!()) |> Path.expand()
 
+  # Returns the prefetched trees along with the changes: every changed blob is read once, in bulk.
   defp git_changes(repo, before, after_tree) do
     entries =
       case Git.diff_trees(repo, before.oid, after_tree.oid) do
@@ -220,19 +221,26 @@ defmodule AssertCommit.Commit do
         {:error, error} -> raise error
       end
 
-    entries
     # Submodule pointers (mode 160000) are not files.
-    |> Enum.reject(&("160000" in [&1.old_mode, &1.new_mode]))
-    |> Enum.map(fn entry ->
-      {path, old_path} =
-        case entry.status do
-          :deleted -> {entry.old_path, nil}
-          s when s in [:renamed, :copied] -> {entry.new_path, entry.old_path}
-          _ -> {entry.new_path, nil}
-        end
+    entries = Enum.reject(entries, &("160000" in [&1.old_mode, &1.new_mode]))
+    before = Tree.prefetch(before, for(e <- entries, e.old_path, do: e.old_path))
+    after_tree = Tree.prefetch(after_tree, for(e <- entries, e.new_path, do: e.new_path))
 
-      FileChange.build(entry.status, path, old_path, before, after_tree, similarity: entry.score)
-    end)
+    changes =
+      Enum.map(entries, fn entry ->
+        {path, old_path} =
+          case entry.status do
+            :deleted -> {entry.old_path, nil}
+            s when s in [:renamed, :copied] -> {entry.new_path, entry.old_path}
+            _ -> {entry.new_path, nil}
+          end
+
+        FileChange.build(entry.status, path, old_path, before, after_tree,
+          similarity: entry.score
+        )
+      end)
+
+    {before, after_tree, changes}
   end
 
   defp synthetic_changes(before_files, after_files, renames, before, after_tree) do

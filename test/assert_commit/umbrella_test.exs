@@ -47,7 +47,9 @@ defmodule AssertCommit.UmbrellaTest do
           ~s(%{"phoenix": {:hex, :phoenix, "1.8.0", "a", [:mix], [], "hexpm", "b"}, "ecto": {:hex, :ecto, "3.13.0", "a", [:mix], [], "hexpm", "b"}}\n),
         "apps/web/CHANGELOG.md" => "# Changelog\n",
         "deps/other/mix.exs" =>
-          "defmodule Other.MixProject do\n  defp deps, do: [{:vendored_dep, \"~> 1.0\"}]\nend\n"
+          "defmodule Other.MixProject do\n  defp deps, do: [{:vendored_dep, \"~> 1.0\"}]\nend\n",
+        "test/fixtures/proj/mix.exs" =>
+          "defmodule Fixture.MixProject do\n  defp deps, do: [{:fixture_dep, \"~> 1.0\"}]\nend\n"
       })
 
     assert Enum.map(MixFile.all_deps(tree), & &1.name) == [:ecto_sql, :phoenix]
