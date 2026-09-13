@@ -6,7 +6,7 @@ defmodule AssertCommit.Assertions.Phoenix do
 
   alias AssertCommit.Adapters.{PhoenixHandler, PhoenixRouter}
   alias AssertCommit.Assertions.Flunk
-  alias AssertCommit.{Commit, Source}
+  alias AssertCommit.{Commit, Paths, Source}
 
   @doc """
   Asserts every controller or LiveView the commit adds is routed by some
@@ -30,7 +30,7 @@ defmodule AssertCommit.Assertions.Phoenix do
         :ok
 
       _ ->
-        routers = Source.find(commit.after, PhoenixRouter, ~r{^lib/})
+        routers = Source.find(commit.after, PhoenixRouter, Paths.lib())
 
         unrouted =
           for h <- handlers, not Enum.any?(routers, &PhoenixRouter.routes?(&1, h.module)), do: h
@@ -41,7 +41,7 @@ defmodule AssertCommit.Assertions.Phoenix do
 
           {_, []} ->
             Flunk.flunk([
-              "These #{describe(unrouted)} were added, but no Phoenix router was found under lib/:"
+              "These #{describe(unrouted)} were added, but no Phoenix router was found under any lib/:"
               | Flunk.indent(Enum.map(unrouted, &inspect(&1.module)))
             ])
 

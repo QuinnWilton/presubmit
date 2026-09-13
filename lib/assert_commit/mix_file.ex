@@ -50,6 +50,32 @@ defmodule AssertCommit.MixFile do
     end
   end
 
+  @doc "Dependencies declared by every `mix.exs` in the tree (umbrella apps included), deduplicated by name."
+  @spec all_deps(Tree.t()) :: [dep()]
+  def all_deps(%Tree{} = tree) do
+    tree
+    |> project_files(AssertCommit.Paths.mix_files())
+    |> Enum.flat_map(&deps(tree, &1))
+    |> Enum.uniq_by(& &1.name)
+  end
+
+  @doc "Package names present in every `mix.lock` in the tree."
+  @spec all_locked(Tree.t()) :: [atom()]
+  def all_locked(%Tree{} = tree) do
+    tree
+    |> project_files(AssertCommit.Paths.lock_files())
+    |> Enum.flat_map(&locked(tree, &1))
+    |> Enum.uniq()
+  end
+
+  @doc "Paths in the tree matching `pattern`, excluding vendored dependencies."
+  @spec project_files(Tree.t(), Regex.t()) :: [String.t()]
+  def project_files(%Tree{} = tree, pattern) do
+    tree
+    |> Tree.paths()
+    |> Enum.filter(&(Regex.match?(pattern, &1) and not AssertCommit.Paths.vendored?(&1)))
+  end
+
   defp parse(tree, path) do
     with {:ok, source} <- Tree.read(tree, path) do
       Code.string_to_quoted(source, file: path, emit_warnings: false)

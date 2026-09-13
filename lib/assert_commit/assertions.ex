@@ -46,7 +46,7 @@ defmodule AssertCommit.Assertions do
 
   import AssertCommit.Assertions.Flunk, only: [flunk: 1, indent: 1]
 
-  alias AssertCommit.{Commit, FileChange, Pattern, Query}
+  alias AssertCommit.{Commit, FileChange, Paths, Pattern, Query}
   alias AssertCommit.Source.Facts
   alias AssertCommit.Source.Facts.Function
 
@@ -353,14 +353,14 @@ defmodule AssertCommit.Assertions do
 
   @doc """
   Asserts every public function the commit adds in files matching `pattern`
-  (default: `lib/`) has a `@spec`.
+  (default: any `lib/` directory) has a `@spec`.
 
   Macros and `@impl` callbacks are exempt: callbacks take their contract from
   the behaviour, and macros are not conventionally spec'd. A spec for a
   head's full arity covers every arity its default arguments generate.
   """
   @spec assert_specs(Commit.t(), pattern()) :: :ok
-  def assert_specs(%Commit{} = commit, pattern \\ ~r{^lib/}) do
+  def assert_specs(%Commit{} = commit, pattern \\ Paths.lib()) do
     missing =
       for %Function{kind: :def, impl?: false} = f <- Query.functions_added(commit, pattern),
           not f.spec?,
@@ -374,11 +374,11 @@ defmodule AssertCommit.Assertions do
 
   @doc """
   Asserts every module the commit adds in files matching `pattern`
-  (default: `lib/`) declares a `@moduledoc` (`@moduledoc false` counts as a
+  (default: any `lib/` directory) declares a `@moduledoc` (`@moduledoc false` counts as a
   deliberate choice).
   """
   @spec assert_moduledoc(Commit.t(), pattern()) :: :ok
-  def assert_moduledoc(%Commit{} = commit, pattern \\ ~r{^lib/}) do
+  def assert_moduledoc(%Commit{} = commit, pattern \\ Paths.lib()) do
     missing =
       for m <- Query.module_facts_added(commit, pattern), is_nil(m.moduledoc), do: inspect(m.name)
 

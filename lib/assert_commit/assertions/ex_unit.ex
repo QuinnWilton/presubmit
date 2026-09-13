@@ -6,7 +6,7 @@ defmodule AssertCommit.Assertions.ExUnit do
 
   alias AssertCommit.Adapters.ExUnitCase
   alias AssertCommit.Assertions.Flunk
-  alias AssertCommit.{Commit, Query, Source}
+  alias AssertCommit.{Commit, Paths, Query, Source}
 
   @doc """
   Asserts every module the commit adds under `lib/` has a test module in the
@@ -15,14 +15,14 @@ defmodule AssertCommit.Assertions.ExUnit do
   @spec assert_tested(Commit.t()) :: :ok
   def assert_tested(%Commit{} = commit) do
     added =
-      for m <- Query.module_facts_added(commit), String.starts_with?(m.path, "lib/"), do: m.name
+      for m <- Query.module_facts_added(commit), Regex.match?(Paths.lib(), m.path), do: m.name
 
     case added do
       [] ->
         :ok
 
       _ ->
-        cases = Source.find(commit.after, ExUnitCase, ~r{^test/})
+        cases = Source.find(commit.after, ExUnitCase, Paths.test())
         untested = for m <- added, not Enum.any?(cases, &ExUnitCase.covers?(&1, m)), do: m
 
         case untested do
@@ -44,9 +44,9 @@ defmodule AssertCommit.Assertions.ExUnit do
   """
   @spec assert_behaviour_changes_tested(Commit.t()) :: :ok
   def assert_behaviour_changes_tested(%Commit{} = commit) do
-    if Query.behaviour_changed?(commit, ~r{^lib/}) and not Query.touches?(commit, ~r{^test/}) do
+    if Query.behaviour_changed?(commit, Paths.lib()) and not Query.touches?(commit, Paths.test()) do
       %{added: added, removed: removed, body_changed: body_changed} =
-        Query.function_changes(commit, ~r{^lib/})
+        Query.function_changes(commit, Paths.lib())
 
       changed =
         Enum.map(added, &"#{inspect(&1.module)}.#{&1.name}/#{&1.arity} (added)") ++

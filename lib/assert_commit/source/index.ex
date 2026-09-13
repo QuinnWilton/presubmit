@@ -13,11 +13,9 @@ defmodule AssertCommit.Source.Index do
   alias AssertCommit.Source.Facts
   alias AssertCommit.Source.Facts.Module
 
-  @default_pattern ~r{^(lib|priv|test)/.*\.exs?$}
-
   @doc "Every module defined in files of `tree` matching `pattern`."
   @spec modules(Tree.t(), Pattern.t()) :: [Module.t()]
-  def modules(%Tree{} = tree, pattern \\ @default_pattern) do
+  def modules(%Tree{} = tree, pattern \\ AssertCommit.Paths.elixir_source()) do
     tree
     |> Tree.paths()
     |> Enum.filter(&(Path.extname(&1) in [".ex", ".exs"] and Pattern.matches?(&1, pattern)))
@@ -26,7 +24,7 @@ defmodule AssertCommit.Source.Index do
 
   @doc "The module named `name` in `tree`, if any file matching `pattern` defines it."
   @spec find(Tree.t(), module(), Pattern.t()) :: Module.t() | nil
-  def find(%Tree{} = tree, name, pattern \\ @default_pattern) do
+  def find(%Tree{} = tree, name, pattern \\ AssertCommit.Paths.elixir_source()) do
     tree |> modules(pattern) |> Enum.find(&(&1.name == name))
   end
 end

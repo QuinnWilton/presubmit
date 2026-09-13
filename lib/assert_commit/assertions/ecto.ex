@@ -11,8 +11,6 @@ defmodule AssertCommit.Assertions.Ecto do
   alias AssertCommit.Assertions.Flunk
   alias AssertCommit.{Commit, Source}
 
-  @migration_files ~r{/migrations/.*\.exs$}
-
   @doc "Migrations the commit adds."
   @spec migrations_added(Commit.t()) :: [EctoMigration.t()]
   def migrations_added(%Commit{} = commit), do: Source.models(commit, EctoMigration).added
@@ -20,7 +18,10 @@ defmodule AssertCommit.Assertions.Ecto do
   @doc "Every migration in the resulting tree, oldest first."
   @spec migrations(Commit.t()) :: [EctoMigration.t()]
   def migrations(%Commit{after: tree}),
-    do: tree |> Source.find(EctoMigration, @migration_files) |> Enum.sort_by(& &1.version)
+    do:
+      tree
+      |> Source.find(EctoMigration, AssertCommit.Paths.migrations())
+      |> Enum.sort_by(& &1.version)
 
   @doc """
   Asserts every migration the commit adds has a version newer than every
@@ -36,7 +37,7 @@ defmodule AssertCommit.Assertions.Ecto do
 
     existing =
       commit.before
-      |> Source.find(EctoMigration, @migration_files)
+      |> Source.find(EctoMigration, AssertCommit.Paths.migrations())
       |> Enum.map(& &1.version)
       |> Enum.reject(&is_nil/1)
 

@@ -6,7 +6,7 @@ defmodule AssertCommit.Assertions.OTP do
 
   alias AssertCommit.Adapters.OtpProcess
   alias AssertCommit.Assertions.Flunk
-  alias AssertCommit.{Commit, Source}
+  alias AssertCommit.{Commit, Paths, Source}
 
   @doc """
   Asserts every GenServer, Agent, Task, or Supervisor module the commit adds
@@ -26,7 +26,9 @@ defmodule AssertCommit.Assertions.OTP do
 
       _ ->
         supervisors =
-          commit.after |> Source.find(OtpProcess, ~r{^lib/}) |> Enum.filter(&(&1.children != []))
+          commit.after
+          |> Source.find(OtpProcess, Paths.lib())
+          |> Enum.filter(&(&1.children != []))
 
         orphans =
           for w <- workers, not Enum.any?(supervisors, &OtpProcess.starts?(&1, w.module)), do: w
@@ -45,6 +47,6 @@ defmodule AssertCommit.Assertions.OTP do
     end
   end
 
-  defp describe([]), do: "none found under lib/"
+  defp describe([]), do: "none found under any lib/"
   defp describe(supervisors), do: Enum.map_join(supervisors, ", ", &inspect(&1.module))
 end

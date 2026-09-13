@@ -135,14 +135,17 @@ defmodule AssertCommit.Config do
 
     deps =
       if tree,
-        do: Enum.uniq(Enum.map(MixFile.deps(tree), & &1.name) ++ MixFile.locked(tree)),
+        do: Enum.uniq(Enum.map(MixFile.all_deps(tree), & &1.name) ++ MixFile.all_locked(tree)),
         else: []
 
-    %{
-      loaded?: Keyword.get(opts, :loaded?, &Code.ensure_loaded?/1),
-      deps: deps,
-      file?: if(tree, do: &Tree.exists?(tree, &1), else: fn _ -> false end)
-    }
+    # A required file counts at the root or at the root of any nested project.
+    file? = fn path ->
+      tree != nil and
+        (Tree.exists?(tree, path) or
+           Enum.any?(Tree.paths(tree), &String.ends_with?(&1, "/" <> path)))
+    end
+
+    %{loaded?: Keyword.get(opts, :loaded?, &Code.ensure_loaded?/1), deps: deps, file?: file?}
   end
 
   defp spec_module(module) when is_atom(module), do: module

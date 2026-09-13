@@ -52,7 +52,7 @@ defmodule AssertCommit.Source do
 
   @doc "Every model `adapter` recognises among the modules of `tree` matching `pattern`."
   @spec find(Tree.t(), module(), Pattern.t()) :: [struct()]
-  def find(%Tree{} = tree, adapter, pattern \\ ~r{^(lib|priv|test)/.*\.exs?$}) do
+  def find(%Tree{} = tree, adapter, pattern \\ AssertCommit.Paths.elixir_source()) do
     tree |> Index.modules(pattern) |> models_for(adapter)
   end
 

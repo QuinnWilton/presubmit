@@ -13,7 +13,7 @@ defmodule AssertCommit.Rules.Hygiene do
   @artifacts [~r/\.DS_Store$/, ~r/\.(orig|rej|beam)$/, ~r{^_build/}]
 
   rule :no_debug_calls, "no debugging calls in lib/", fn commit, opts ->
-    refute_added_lines(commit, Keyword.get(opts, :debug, @debug), in: ~r{^lib/})
+    refute_added_lines(commit, Keyword.get(opts, :debug, @debug), in: AssertCommit.Paths.lib())
   end
 
   rule :no_merge_markers,

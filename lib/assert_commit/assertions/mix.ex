@@ -9,15 +9,15 @@ defmodule AssertCommit.Assertions.Mix do
   @doc "Dependencies the commit adds to `mix.exs`."
   @spec deps_added(Commit.t()) :: [MixFile.dep()]
   def deps_added(%Commit{before: before, after: after_tree}) do
-    old = MapSet.new(MixFile.deps(before), & &1.name)
-    for dep <- MixFile.deps(after_tree), not MapSet.member?(old, dep.name), do: dep
+    old = MapSet.new(MixFile.all_deps(before), & &1.name)
+    for dep <- MixFile.all_deps(after_tree), not MapSet.member?(old, dep.name), do: dep
   end
 
   @doc "Dependencies the commit removes from `mix.exs`."
   @spec deps_removed(Commit.t()) :: [MixFile.dep()]
   def deps_removed(%Commit{before: before, after: after_tree}) do
-    new = MapSet.new(MixFile.deps(after_tree), & &1.name)
-    for dep <- MixFile.deps(before), not MapSet.member?(new, dep.name), do: dep
+    new = MapSet.new(MixFile.all_deps(after_tree), & &1.name)
+    for dep <- MixFile.all_deps(before), not MapSet.member?(new, dep.name), do: dep
   end
 
   @doc "The version the commit sets in `mix.exs`, if it changed it."
@@ -29,15 +29,15 @@ defmodule AssertCommit.Assertions.Mix do
   end
 
   @doc """
-  Asserts every hex dependency the commit adds is present in the resulting
-  `mix.lock`, and every one it removes is absent — the lockfile was
-  regenerated with the change.
+  Asserts every hex dependency the commit adds to any `mix.exs` is present in
+  a resulting `mix.lock`, and every one it removes is absent — the lockfile
+  was regenerated with the change. Umbrella apps share the root lockfile.
 
   Path and git dependencies without a lock entry are not required to appear.
   """
   @spec assert_lock_in_sync(Commit.t()) :: :ok
   def assert_lock_in_sync(%Commit{after: after_tree} = commit) do
-    locked = MapSet.new(MixFile.locked(after_tree))
+    locked = MapSet.new(MixFile.all_locked(after_tree))
 
     missing =
       for dep <- deps_added(commit),
