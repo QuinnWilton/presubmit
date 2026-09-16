@@ -1,4 +1,4 @@
-defmodule AssertCommit.Scenarios.SourcesTest do
+defmodule Presubmit.Scenarios.SourcesTest do
   @moduledoc """
   Where a change set comes from: a commit, the staged index, every commit in
   a range, and the failure modes of each.
@@ -6,10 +6,10 @@ defmodule AssertCommit.Scenarios.SourcesTest do
 
   use ExUnit.Case, async: true
 
-  import AssertCommit.Assertions
-  import AssertCommit.Query
+  import Presubmit.Assertions
+  import Presubmit.Query
 
-  alias AssertCommit.{Commit, FixtureRepo, Fixtures, Git}
+  alias Presubmit.{Commit, FixtureRepo, Fixtures, Git}
 
   @moduletag :tmp_dir
 
@@ -28,7 +28,7 @@ defmodule AssertCommit.Scenarios.SourcesTest do
       assert commit.sha == nil
       assert added(commit) == ["lib/shop/debug.ex"]
 
-      assert_raise AssertCommit.Violation,
+      assert_raise Presubmit.Violation,
                    ~r/lib\/shop\/debug\.ex:1: IO\.inspect\(:staged\)/,
                    fn -> refute_added_lines(commit, ~r/IO\.inspect\(/) end
     end
@@ -37,7 +37,7 @@ defmodule AssertCommit.Scenarios.SourcesTest do
       commit = repo |> FixtureRepo.stage!(write: %{"x" => "x\n"}) |> FixtureRepo.staged()
       refute has_message?(commit)
 
-      error = assert_raise AssertCommit.NoMessageError, fn -> assert_subject(commit, ~r/./) end
+      error = assert_raise Presubmit.NoMessageError, fn -> assert_subject(commit, ~r/./) end
       assert Exception.message(error) =~ "built from :staged and has no commit message yet"
     end
 
@@ -97,7 +97,7 @@ defmodule AssertCommit.Scenarios.SourcesTest do
             refute_added_lines(commit, ~r/IO\.inspect/)
             {subject(commit), :ok}
           rescue
-            e in AssertCommit.Violation -> {subject(commit), e.message}
+            e in Presubmit.Violation -> {subject(commit), e.message}
           end
         end
 
@@ -130,7 +130,7 @@ defmodule AssertCommit.Scenarios.SourcesTest do
         ]
       )
 
-      error = assert_raise AssertCommit.MergeCommitError, fn -> FixtureRepo.head(repo) end
+      error = assert_raise Presubmit.MergeCommitError, fn -> FixtureRepo.head(repo) end
       assert Exception.message(error) =~ "is a merge commit with 2 parents"
       assert Exception.message(error) =~ "github.event.pull_request.head.sha"
     end
@@ -149,18 +149,18 @@ defmodule AssertCommit.Scenarios.SourcesTest do
         shallow
       ])
 
-      error = assert_raise AssertCommit.ShallowCloneError, fn -> Commit.head(repo: shallow) end
+      error = assert_raise Presubmit.ShallowCloneError, fn -> Commit.head(repo: shallow) end
       assert Exception.message(error) =~ "set `fetch-depth: 2`"
     end
 
     test "a repository with no commits raises a GitError naming the command", %{tmp_dir: dir} do
       repo = dir |> Path.join("empty") |> FixtureRepo.init!()
-      error = assert_raise AssertCommit.GitError, fn -> Commit.head(repo: repo.path) end
+      error = assert_raise Presubmit.GitError, fn -> Commit.head(repo: repo.path) end
       assert Exception.message(error) =~ ~r/^git log -1 .* failed in .* \(exit 128\)/
     end
 
     test "an unknown revision raises a GitError", %{repo: repo} do
-      assert_raise AssertCommit.GitError, ~r/unknown revision|bad revision/, fn ->
+      assert_raise Presubmit.GitError, ~r/unknown revision|bad revision/, fn ->
         Commit.rev("nope", repo: repo.path)
       end
     end

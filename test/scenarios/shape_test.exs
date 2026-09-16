@@ -1,4 +1,4 @@
-defmodule AssertCommit.Scenarios.ShapeTest do
+defmodule Presubmit.Scenarios.ShapeTest do
   @moduledoc """
   The commit requirements — atomic, bisectable, separate concerns — run
   against `fixtures/shape`.
@@ -6,10 +6,10 @@ defmodule AssertCommit.Scenarios.ShapeTest do
 
   use ExUnit.Case, async: true
 
-  import AssertCommit.Query
-  import AssertCommit.RuleHelpers
+  import Presubmit.Query
+  import Presubmit.RuleHelpers
 
-  alias AssertCommit.{Fixtures, Rules}
+  alias Presubmit.{Fixtures, Rules}
 
   setup_all do: %{repo: Fixtures.repo("shape")}
 

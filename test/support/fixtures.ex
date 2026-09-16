@@ -1,4 +1,4 @@
-defmodule AssertCommit.Fixtures do
+defmodule Presubmit.Fixtures do
   @moduledoc """
   Builds the fixture repositories under `fixtures/` for integration tests.
 
@@ -14,7 +14,7 @@ defmodule AssertCommit.Fixtures do
   verbatim, so `[component]` prefixes survive `git am -k`).
   """
 
-  alias AssertCommit.FixtureRepo
+  alias Presubmit.FixtureRepo
 
   @root Path.expand("../../fixtures", __DIR__)
 

@@ -7,7 +7,7 @@ dogfood? =
   )
 
 unless dogfood? do
-  IO.puts("[assert_commit] HEAD~1 is unavailable; excluding :dogfood tests")
+  IO.puts("[presubmit] HEAD~1 is unavailable; excluding :dogfood tests")
 end
 
 ExUnit.start(exclude: if(dogfood?, do: [], else: [:dogfood]))

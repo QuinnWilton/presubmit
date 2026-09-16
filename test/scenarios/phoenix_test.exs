@@ -1,4 +1,4 @@
-defmodule AssertCommit.Scenarios.PhoenixTest do
+defmodule Presubmit.Scenarios.PhoenixTest do
   @moduledoc """
   The Phoenix, Ecto, OTP, ExUnit, and Hygiene rule sets run against
   `fixtures/phoenix`: one scenario branch per patch, each named for the
@@ -7,11 +7,11 @@ defmodule AssertCommit.Scenarios.PhoenixTest do
 
   use ExUnit.Case, async: true
 
-  import AssertCommit.Query
-  import AssertCommit.RuleHelpers
+  import Presubmit.Query
+  import Presubmit.RuleHelpers
 
-  alias AssertCommit.Assertions.{Ecto, Phoenix}
-  alias AssertCommit.{Fixtures, Rules}
+  alias Presubmit.Assertions.{Ecto, Phoenix}
+  alias Presubmit.{Fixtures, Rules}
 
   setup_all do: %{repo: Fixtures.repo("phoenix")}
 

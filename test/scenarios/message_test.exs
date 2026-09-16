@@ -1,4 +1,4 @@
-defmodule AssertCommit.Scenarios.MessageTest do
+defmodule Presubmit.Scenarios.MessageTest do
   @moduledoc """
   `Rules.Message` run against `fixtures/message`: a multi-project repository
   whose `[component]` subjects must agree with the paths touched, whose
@@ -8,10 +8,10 @@ defmodule AssertCommit.Scenarios.MessageTest do
 
   use ExUnit.Case, async: true
 
-  import AssertCommit.Query
-  import AssertCommit.RuleHelpers
+  import Presubmit.Query
+  import Presubmit.RuleHelpers
 
-  alias AssertCommit.{Fixtures, Rules}
+  alias Presubmit.{Fixtures, Rules}
 
   setup_all do: %{repo: Fixtures.repo("message")}
 
@@ -97,8 +97,8 @@ defmodule AssertCommit.Scenarios.MessageTest do
 
       # The generic verb explains why the block was not recognised.
       error =
-        assert_raise AssertCommit.Violation, fn ->
-          AssertCommit.Assertions.assert_trailer(commit, "Co-Authored-By")
+        assert_raise Presubmit.Violation, fn ->
+          Presubmit.Assertions.assert_trailer(commit, "Co-Authored-By")
         end
 
       assert error.message =~

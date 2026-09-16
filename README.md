@@ -1,16 +1,18 @@
-# assert_commit
+# presubmit
 
-[![CI](https://github.com/QuinnWilton/assert_commit/actions/workflows/ci.yml/badge.svg)](https://github.com/QuinnWilton/assert_commit/actions/workflows/ci.yml)
-[![Hex.pm](https://img.shields.io/hexpm/v/assert_commit.svg)](https://hex.pm/packages/assert_commit)
-[![Docs](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/assert_commit)
+[![CI](https://github.com/QuinnWilton/presubmit/actions/workflows/ci.yml/badge.svg)](https://github.com/QuinnWilton/presubmit/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/presubmit.svg)](https://hex.pm/packages/presubmit)
+[![Docs](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/presubmit)
 
-A linter for git commits, with Elixir-aware models of what changed.
+A linter for git commits, with Elixir-aware models of what changed. The
+name is borrowed from Chromium's `PRESUBMIT.py` checks — the same idea,
+applied per commit and with Elixir semantics.
 
 Your tests prove that the code at `HEAD` works. They say nothing about
 whether the *commit* is one your process would accept: whether the migration
 it adds will run in order, whether the controller it adds is reachable,
 whether the function it removes was ever deprecated, whether a move was
-landed on its own. assert_commit checks those. It parses the Elixir a change
+landed on its own. presubmit checks those. It parses the Elixir a change
 touched into modules, functions, schema fields, routes, and child specs — never
 compiling anything — and runs rules over that, on the commit, the staged
 index, or the working tree. A commit of the Elixir compiler's repository
@@ -18,7 +20,7 @@ index, or the working tree. A commit of the Elixir compiler's repository
 a minute.
 
 ```
-$ mix assert_commit
+$ mix presubmit
 Examining staged index (2 files differ from HEAD) — Add posts index
 
   ✗ added controllers and LiveViews are routed
@@ -43,20 +45,20 @@ fails when the router was edited without adding the route.
 
 ```elixir
 # mix.exs
-{:assert_commit, "~> 0.1.0", only: [:dev, :test], runtime: false}
+{:presubmit, "~> 0.1.0", only: [:dev, :test], runtime: false}
 ```
 
 ```sh
-mix assert_commit.install     # commit-msg hook: checks staged changes + message before each commit
-mix assert_commit             # run it by hand; picks the working tree if dirty, else HEAD
+mix presubmit.install     # commit-msg hook: checks staged changes + message before each commit
+mix presubmit             # run it by hand; picks the working tree if dirty, else HEAD
 ```
 
-Add `import_deps: [:assert_commit]` to `.formatter.exs` so `mix format`
+Add `import_deps: [:presubmit]` to `.formatter.exs` so `mix format`
 leaves `rule :id, "name", fn … end` declarations without parentheses. The
 first run after `mix deps.get` compiles the dependency, so the first hooked
 commit in a fresh clone is slower than the rest.
 
-The `commit-msg` hook runs `mix assert_commit --staged --message-file "$1"`,
+The `commit-msg` hook runs `mix presubmit --staged --message-file "$1"`,
 so every rule — message rules included — runs before the commit exists. A
 companion `prepare-commit-msg` hook notices `git commit --amend` and has the
 amended commit checked (`HEAD^` to the index) instead of the delta since
@@ -82,20 +84,20 @@ commits:
       with: { elixir-version: "1.19", otp-version: "28" }
     - run: mix deps.get
     - if: github.event_name == 'pull_request'
-      run: mix assert_commit --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+      run: mix presubmit --range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
     - if: github.event_name == 'push'
-      run: mix assert_commit --range ${{ github.event.before }}..${{ github.sha }}   # --head for a new branch
+      run: mix presubmit --range ${{ github.event.before }}..${{ github.sha }}   # --head for a new branch
 ```
 
 On `pull_request` events `HEAD` is a synthetic merge commit, which
-assert_commit refuses rather than diffing against one parent; `--range`
+presubmit refuses rather than diffing against one parent; `--range`
 checks the PR's own commits, oldest first. Exit status is 0 when every rule
 passed or was skipped, 1 on any failure, 2 on a usage or configuration error.
 The first line of output always names what was examined.
 
 ## Configuration
 
-Without a `.assert_commit.exs`, the defaults are the rules that do not fail
+Without a `.presubmit.exs`, the defaults are the rules that do not fail
 an ordinary commit — calibrated against this workspace's projects and the
 Elixir repository's history — and they adapt to the project: Phoenix and
 Ecto rules when those libraries are loaded or are dependencies, the release
@@ -112,18 +114,18 @@ per rule; `tested` is opt-in. The file is a list of rule sets and replaces
 the defaults:
 
 ```elixir
-# .assert_commit.exs
+# .presubmit.exs
 [
-  AssertCommit.Rules.Elixir,
-  AssertCommit.Rules.Phoenix,
-  {AssertCommit.Rules.Ecto, except: [:migrations_reversible]},
-  {AssertCommit.Rules.ExUnit, only: [:behaviour_changes_tested]},
-  AssertCommit.Rules.Mix,
-  AssertCommit.Rules.Changelog,
-  AssertCommit.Rules.Hygiene,
-  {AssertCommit.Rules.Shape, max_files: 40},
-  {AssertCommit.Rules.ExUnit, only: [:behaviour_changes_tested], in: ~r{^apps/core/}},   # scoped to a path
-  {AssertCommit.Rules.Message,
+  Presubmit.Rules.Elixir,
+  Presubmit.Rules.Phoenix,
+  {Presubmit.Rules.Ecto, except: [:migrations_reversible]},
+  {Presubmit.Rules.ExUnit, only: [:behaviour_changes_tested]},
+  Presubmit.Rules.Mix,
+  Presubmit.Rules.Changelog,
+  Presubmit.Rules.Hygiene,
+  {Presubmit.Rules.Shape, max_files: 40},
+  {Presubmit.Rules.ExUnit, only: [:behaviour_changes_tested], in: ~r{^apps/core/}},   # scoped to a path
+  {Presubmit.Rules.Message,
    subject: ~r/^\[[a-z_-]+\] /,
    scope: {~r/^\[(\w+)\]/, fn component -> ~r{^#{component}/} end}},
   MyApp.CommitRules
@@ -146,23 +148,28 @@ the defaults:
 Every set takes `only:`/`except:` to select rules, `warn:` to make some of
 them non-blocking, and `in:` to restrict the set to changes under a path
 pattern (a rule set with no changes in scope is skipped).
-`mix assert_commit --list` prints the configured rules with their descriptions.
+
+A commit can exempt itself, as in Chromium: a `Presubmit-Skip: pure_move, max_files`
+trailer skips the named rules and `No-Presubmit: true` skips them all. Both
+are announced on every run and are part of the commit, so CI sees the same
+decision — prefer them to `git commit --no-verify`, which leaves no trace.
+`mix presubmit --list` prints the configured rules with their descriptions.
 
 ### Your own rules
 
 A rule is a function of the change set that returns `:ok` or raises
-`AssertCommit.Violation`; the assertion verbs in `AssertCommit.Assertions`
-and `AssertCommit.Assertions.{Phoenix,Ecto,OTP,ExUnit,Mix,Changelog}` do the
+`Presubmit.Violation`; the assertion verbs in `Presubmit.Assertions`
+and `Presubmit.Assertions.{Phoenix,Ecto,OTP,ExUnit,Mix,Changelog}` do the
 raising with messages that say what is wrong and how to fix it. Rule sets
-can live in `.assert_commit.exs` itself.
+can live in `.presubmit.exs` itself.
 
 ```elixir
 defmodule MyApp.CommitRules do
-  use AssertCommit.RuleSet
+  use Presubmit.RuleSet
 
-  import AssertCommit.Query
-  import AssertCommit.Assertions
-  import AssertCommit.Assertions.Mix
+  import Presubmit.Query
+  import Presubmit.Assertions
+  import Presubmit.Assertions.Mix
 
   rule :release_only, "a version bump touches only release metadata", fn commit ->
     if version_bump(commit), do: refute_touched(commit, ~r{^(lib|test)/}), else: :ok
@@ -206,7 +213,7 @@ know about it — `action_fallback` controllers, `DynamicSupervisor`
 children, `virtual` fields, unmerged migrations (`Rules.Ecto` with
 `since: "origin/main"`), `fixup!` commits, `Revert`/`Merge` subjects.
 
-`.assert_commit.exs` is evaluated as code, like `mix.exs` — and with
+`.presubmit.exs` is evaluated as code, like `mix.exs` — and with
 `--repo` it is the *other* repository's file that runs. Do not point
 `--repo` at a checkout you would not run `mix` in; a CI job examining
 untrusted pull-request checkouts should pass `--config` with its own file.

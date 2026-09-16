@@ -1,12 +1,12 @@
-defmodule AssertCommit.MixProject do
+defmodule Presubmit.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @source_url "https://github.com/QuinnWilton/assert_commit"
+  @source_url "https://github.com/QuinnWilton/presubmit"
 
   def project do
     [
-      app: :assert_commit,
+      app: :presubmit,
       version: @version,
       elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
@@ -59,30 +59,30 @@ defmodule AssertCommit.MixProject do
       source_url: @source_url,
       groups_for_modules: [
         Running: [
-          AssertCommit,
-          AssertCommit.CLI,
-          AssertCommit.Config,
-          AssertCommit.Runner,
-          AssertCommit.Formatter,
-          AssertCommit.Hooks
+          Presubmit,
+          Presubmit.CLI,
+          Presubmit.Config,
+          Presubmit.Runner,
+          Presubmit.Formatter,
+          Presubmit.Hooks
         ],
-        Rules: [AssertCommit.Rule, AssertCommit.RuleSet, ~r/^AssertCommit\.Rules\./],
-        Assertions: [~r/^AssertCommit\.Assertions/, AssertCommit.Query, AssertCommit.Violation],
-        Adapters: [AssertCommit.Adapter, ~r/^AssertCommit\.Adapters\./],
+        Rules: [Presubmit.Rule, Presubmit.RuleSet, ~r/^Presubmit\.Rules\./],
+        Assertions: [~r/^Presubmit\.Assertions/, Presubmit.Query, Presubmit.Violation],
+        Adapters: [Presubmit.Adapter, ~r/^Presubmit\.Adapters\./],
         "Source analysis": [
-          ~r/^AssertCommit\.Source/,
-          AssertCommit.MixFile,
-          AssertCommit.Changelog
+          ~r/^Presubmit\.Source/,
+          Presubmit.MixFile,
+          Presubmit.Changelog
         ],
         "Change sets": [
-          AssertCommit.Commit,
-          AssertCommit.Tree,
-          AssertCommit.FileChange,
-          AssertCommit.Hunk,
-          AssertCommit.Message,
-          AssertCommit.Pattern,
-          AssertCommit.Paths,
-          AssertCommit.Git
+          Presubmit.Commit,
+          Presubmit.Tree,
+          Presubmit.FileChange,
+          Presubmit.Hunk,
+          Presubmit.Message,
+          Presubmit.Pattern,
+          Presubmit.Paths,
+          Presubmit.Git
         ],
         Errors: [~r/Error$/]
       ]

@@ -1,4 +1,4 @@
-defmodule AssertCommit.FixtureRepo do
+defmodule Presubmit.FixtureRepo do
   @moduledoc """
   Builds real git repositories in a temporary directory for integration tests.
 
@@ -12,7 +12,7 @@ defmodule AssertCommit.FixtureRepo do
       commit = FixtureRepo.head(repo)
   """
 
-  alias AssertCommit.{Commit, Git}
+  alias Presubmit.{Commit, Git}
 
   @enforce_keys [:path]
   defstruct [:path, clock: 0]

@@ -1,4 +1,4 @@
-defmodule AssertCommit.Scenarios.LibraryTest do
+defmodule Presubmit.Scenarios.LibraryTest do
   @moduledoc """
   The Elixir, Changelog, Mix, and ExUnit rule sets run against
   `fixtures/library`, a published hex package.
@@ -6,11 +6,11 @@ defmodule AssertCommit.Scenarios.LibraryTest do
 
   use ExUnit.Case, async: true
 
-  import AssertCommit.Query
-  import AssertCommit.RuleHelpers
+  import Presubmit.Query
+  import Presubmit.RuleHelpers
 
-  alias AssertCommit.Assertions.Mix, as: MixAssertions
-  alias AssertCommit.{Fixtures, Rules}
+  alias Presubmit.Assertions.Mix, as: MixAssertions
+  alias Presubmit.{Fixtures, Rules}
 
   setup_all do: %{repo: Fixtures.repo("library")}
 
@@ -135,7 +135,7 @@ defmodule AssertCommit.Scenarios.LibraryTest do
     test "passes when the lockfile gained the dependency", %{repo: repo} do
       commit = scenario(repo, :deps_changed_with_lock)
       assert [%{name: name}] = MixAssertions.deps_added(commit)
-      assert name in AssertCommit.MixFile.locked(commit.after)
+      assert name in Presubmit.MixFile.locked(commit.after)
       assert_pass(run_rule(Rules.Mix, :lock_in_sync, commit))
     end
 
@@ -158,7 +158,7 @@ defmodule AssertCommit.Scenarios.LibraryTest do
     test "passes for a clean release", %{repo: repo} do
       commit = scenario(repo, :release_commit)
       assert {_, new} = MixAssertions.version_bump(commit)
-      assert AssertCommit.Changelog.section_for(commit.after, new)
+      assert Presubmit.Changelog.section_for(commit.after, new)
       assert_pass(run_rule(Rules.Changelog, :release_logged, commit))
     end
 
@@ -177,10 +177,10 @@ defmodule AssertCommit.Scenarios.LibraryTest do
 
     # A project rule set composed from the generic verbs: releases touch only release metadata.
     defmodule ReleaseRules do
-      use AssertCommit.RuleSet
+      use Presubmit.RuleSet
 
-      import AssertCommit.Assertions
-      import AssertCommit.Assertions.Mix
+      import Presubmit.Assertions
+      import Presubmit.Assertions.Mix
 
       rule :release_only, "a version bump touches only release metadata", fn commit ->
         if version_bump(commit), do: refute_touched(commit, ~r{^(lib|test)/}), else: :ok

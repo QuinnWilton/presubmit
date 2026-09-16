@@ -1,10 +1,10 @@
-defmodule AssertCommit.RuleHelpers do
+defmodule Presubmit.RuleHelpers do
   @moduledoc """
   Runs individual rules from a rule set against a fixture scenario, for the
   scenario suites.
   """
 
-  alias AssertCommit.{Commit, Rule, RuleSet}
+  alias Presubmit.{Commit, Rule, RuleSet}
 
   @doc "Loads `scenario/<name>` from a fixture repository."
   @spec scenario(Path.t(), atom()) :: Commit.t()
