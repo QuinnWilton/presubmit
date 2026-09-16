@@ -11,12 +11,17 @@ defmodule AssertCommit.Rule do
   is skipped. `no_fixup` is the canonical case: `fixup!` commits are meant to
   exist locally and be autosquashed, so the rule applies to committed
   revisions (`:head`, `:rev`) and not to the index a hook is checking.
+
+  A rule's `severity` is `:error` (a violation fails the run) or `:warn` (it
+  is reported but does not fail). Its `scope`, when set, restricts the
+  change set to files matching a pattern before the check runs, so one
+  configuration can apply different rules to different parts of a repository.
   """
 
   alias AssertCommit.{Commit, NoMessageError, Violation}
 
   @enforce_keys [:id, :name, :check]
-  defstruct [:id, :name, :check, set: nil, opts: [], sources: nil]
+  defstruct [:id, :name, :check, set: nil, opts: [], sources: nil, severity: :error, scope: nil]
 
   @type check ::
           (Commit.t() -> :ok | {:skip, String.t()})
@@ -54,13 +59,27 @@ defmodule AssertCommit.Rule do
   as an error rather than crashing the run.
   """
   @spec run(t(), Commit.t()) :: outcome()
-  def run(%__MODULE__{sources: sources} = rule, %Commit{source: source} = commit) do
-    if is_list(sources) and source not in sources do
-      {:skip, "only checked on #{Enum.map_join(sources, "/", &inspect/1)} change sets"}
-    else
-      check(rule, commit)
+  def run(%__MODULE__{sources: sources, scope: scope} = rule, %Commit{source: source} = commit) do
+    cond do
+      is_list(sources) and source not in sources ->
+        {:skip, "only checked on #{Enum.map_join(sources, "/", &inspect/1)} change sets"}
+
+      scope != nil ->
+        case Commit.restrict(commit, scope) do
+          %Commit{changes: []} ->
+            {:skip, "no changes under #{AssertCommit.Pattern.format(scope)}"}
+
+          scoped ->
+            rule |> check(scoped) |> soften(rule)
+        end
+
+      true ->
+        rule |> check(commit) |> soften(rule)
     end
   end
+
+  defp soften({:fail, message}, %__MODULE__{severity: :warn}), do: {:warn, message}
+  defp soften(outcome, _rule), do: outcome
 
   defp check(%__MODULE__{check: check, opts: opts}, commit) do
     result =

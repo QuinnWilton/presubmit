@@ -29,10 +29,10 @@ defmodule AssertCommit.Config do
   condition, and `t:t/0`'s `:detection` records what was decided and why.
 
   The defaults were calibrated against real histories (this workspace's
-  projects and the Elixir repository): what remains does not fail ordinary
+  projects and the Elixir repository): what fails does not fail ordinary
   commits. Rules that encode a policy — `specs`, `removals_deprecated`,
-  `api_changes_logged`, `behaviour_changes_tested`, `tested` — are opt-in
-  through `.assert_commit.exs`.
+  `api_changes_logged`, `behaviour_changes_tested` — run as warnings by
+  default (`warn:`); `tested` is opt-in.
   """
 
   alias AssertCommit.{Commit, MixFile, Rule, Rules, RuleSet, Tree}
@@ -59,14 +59,15 @@ defmodule AssertCommit.Config do
 
   # Calibrated on real histories: a default must not fail an ordinary, reasonable commit. Rules
   # that encode a team's policy rather than a defect (specs everywhere, deprecate before removing,
-  # changelog per API change, tests with every behaviour change) are opt-in.
+  # changelog per API change, tests with every behaviour change) warn instead of failing.
   @default_specs [
-    {Rules.Elixir, only: [:moduledoc, :pure_move]},
+    {Rules.Elixir, warn: [:specs, :removals_deprecated]},
     Rules.Phoenix,
     Rules.Ecto,
     Rules.OTP,
+    {Rules.ExUnit, only: [:behaviour_changes_tested], warn: [:behaviour_changes_tested]},
     Rules.Mix,
-    {Rules.Changelog, only: [:release_logged]},
+    {Rules.Changelog, warn: [:api_changes_logged]},
     {Rules.Message, only: [:no_fixup, :subject_length]},
     Rules.Hygiene,
     Rules.Shape

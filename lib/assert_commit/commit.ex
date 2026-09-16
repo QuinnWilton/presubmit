@@ -168,6 +168,19 @@ defmodule AssertCommit.Commit do
   end
 
   @doc """
+  The same change set restricted to changes whose path matches `pattern`.
+
+  The before and after trees are left whole, so tree-wide invariants still
+  see the whole repository; only the changes — and the structural diff
+  derived from them — are narrowed.
+  """
+  @spec restrict(t(), AssertCommit.Pattern.t()) :: t()
+  def restrict(%__MODULE__{changes: changes} = commit, pattern) do
+    kept = Enum.filter(changes, &AssertCommit.Pattern.matches?(&1.path, pattern))
+    with_diff(%{commit | changes: kept})
+  end
+
+  @doc """
   Builds a synthetic change set from in-memory trees.
 
   ## Options

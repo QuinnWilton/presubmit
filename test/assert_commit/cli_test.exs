@@ -15,7 +15,7 @@ defmodule AssertCommit.CLITest do
     assert out =~ "No .assert_commit.exs; using built-in defaults.\n"
 
     assert out =~
-             ~r/^  enabled: Elixir, Phoenix \(phoenix is a dependency\), Ecto \(ecto_sql is a dependency\), OTP, Mix, Message, Hygiene, Shape\n/m
+             ~r/^  enabled: Elixir, Phoenix \(phoenix is a dependency\), Ecto \(ecto_sql is a dependency\), OTP, ExUnit, Mix, Message, Hygiene, Shape\n/m
 
     assert out =~ ~r/^  not enabled: Changelog \(no CHANGELOG\.md\)\n/m
     refute out =~ "public API changes are recorded"
@@ -207,7 +207,58 @@ defmodule AssertCommit.CLITest do
     assert defaults =~ "Rules see source shapes only"
     assert defaults =~ "No .assert_commit.exs; using built-in defaults.\n"
     assert defaults =~ "AssertCommit.Rules.Phoenix\n  routed — "
+    assert defaults =~ "  specs (warn) — "
     refute defaults =~ "AssertCommit.Rules.Changelog"
+  end
+
+  test "warnings do not fail the run unless --warnings-as-errors", %{repo: repo} do
+    # unrouted_controller adds a public function without a @spec: a default warning, not a failure.
+    {1, out} = run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--no-color"])
+    assert out =~ "⚠ new public functions have a @spec (warning)"
+    assert out =~ ~r/\d+ warned/
+
+    specs_only =
+      write_config(repo, "[{AssertCommit.Rules.Elixir, only: [:specs], warn: [:specs]}]")
+
+    {0, out} =
+      run([
+        "--repo",
+        repo,
+        "--rev",
+        "scenario/unrouted_controller",
+        "--no-color",
+        "--config",
+        specs_only
+      ])
+
+    assert out =~ "1 rule: 1 warned"
+
+    {1, _} =
+      run([
+        "--repo",
+        repo,
+        "--rev",
+        "scenario/unrouted_controller",
+        "--no-color",
+        "--warnings-as-errors",
+        "--config",
+        specs_only
+      ])
+
+    scoped = write_config(repo, "[{AssertCommit.Rules.Elixir, only: [:specs], in: ~r{^priv/}}]")
+
+    {0, out} =
+      run([
+        "--repo",
+        repo,
+        "--rev",
+        "scenario/unrouted_controller",
+        "--no-color",
+        "--config",
+        scoped
+      ])
+
+    assert out =~ "(skipped: no changes under ~r/^priv\\//)"
   end
 
   test "--on-error decides whether a crashed rule fails the run", %{repo: repo} do

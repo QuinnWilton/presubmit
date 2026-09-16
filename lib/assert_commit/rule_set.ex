@@ -19,11 +19,15 @@ defmodule AssertCommit.RuleSet do
       end
 
   In `.assert_commit.exs` a rule set is named by module, optionally with
-  `only:`/`except:` to select rules and any other options the rules read:
+  `only:`/`except:` to select rules, `warn:` to make some of them report
+  without failing, `in:` to restrict the set to changes under a path
+  pattern, and any other options the rules read:
 
       [
         AssertCommit.Rules.Phoenix,
         {AssertCommit.Rules.Ecto, except: [:migrations_reversible]},
+        {AssertCommit.Rules.Elixir, warn: [:specs]},
+        {AssertCommit.Rules.ExUnit, in: ~r{^apps/core/}},
         {MyApp.CommitRules, subject: ~r/^\\[\\w+\\] /}
       ]
   """
@@ -147,8 +151,8 @@ defmodule AssertCommit.RuleSet do
   defp first_line(_), do: ""
 
   @doc """
-  Expands a configuration entry into rules, applying `only:` and `except:`
-  and passing the remaining options to the set.
+  Expands a configuration entry into rules, applying `only:`, `except:`,
+  `warn:`, and `in:` and passing the remaining options to the set.
   """
   @spec expand(spec()) :: [Rule.t()]
   def expand(module) when is_atom(module), do: expand({module, []})
@@ -161,10 +165,12 @@ defmodule AssertCommit.RuleSet do
 
     {only, opts} = Keyword.pop(opts, :only)
     {except, opts} = Keyword.pop(opts, :except, [])
+    {warn, opts} = Keyword.pop(opts, :warn, [])
+    {scope, opts} = Keyword.pop(opts, :in)
     rules = module.rules(opts)
     known = Enum.map(rules, & &1.id)
 
-    for id <- List.wrap(only) ++ except, id not in known do
+    for id <- List.wrap(only) ++ except ++ warn, id not in known do
       raise ArgumentError,
             "#{inspect(module)} has no rule #{inspect(id)}; it has #{inspect(known)}"
     end
@@ -172,5 +178,8 @@ defmodule AssertCommit.RuleSet do
     rules
     |> Enum.filter(&(is_nil(only) or &1.id in only))
     |> Enum.reject(&(&1.id in except))
+    |> Enum.map(fn rule ->
+      %{rule | severity: if(rule.id in warn, do: :warn, else: rule.severity), scope: scope}
+    end)
   end
 end

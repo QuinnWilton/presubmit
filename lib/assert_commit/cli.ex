@@ -23,7 +23,8 @@ defmodule AssertCommit.CLI do
     message_file: :string,
     base: :string,
     on_error: :string,
-    timeout: :integer
+    timeout: :integer,
+    warnings_as_errors: :boolean
   ]
 
   @type result :: {exit_status :: 0 | 1 | 2, output :: iodata()}
@@ -82,7 +83,7 @@ defmodule AssertCommit.CLI do
            ci_note(source, commit, env)}
       end
 
-    status = exit_status(reports, on_error(opts))
+    status = exit_status(reports, on_error(opts), Keyword.get(opts, :warnings_as_errors, false))
 
     output =
       case format do
@@ -100,12 +101,13 @@ defmodule AssertCommit.CLI do
   end
 
   # A crashed rule is a bug in the tool, not in the commit; hooks ask for it to be a warning.
-  defp exit_status(reports, on_error) do
+  defp exit_status(reports, on_error, warnings_as_errors?) do
     statuses = Enum.map(reports, &Report.status/1)
 
     cond do
       :fail in statuses -> 1
       :error in statuses and on_error == :fail -> 1
+      warnings_as_errors? and Enum.any?(reports, &Report.warnings?/1) -> 1
       true -> 0
     end
   end
@@ -256,7 +258,17 @@ defmodule AssertCommit.CLI do
         {module, set_opts} = if is_atom(spec), do: {spec, []}, else: spec
         rules = AssertCommit.RuleSet.expand(spec)
         header = "#{inspect(module)}#{if set_opts == [], do: "", else: " " <> inspect(set_opts)}"
-        Enum.join([header | Enum.map(rules, &"  #{&1.id} — #{&1.name}")], "\n")
+
+        Enum.join(
+          [
+            header
+            | Enum.map(
+                rules,
+                &"  #{&1.id}#{if &1.severity == :warn, do: " (warn)", else: ""} — #{&1.name}"
+              )
+          ],
+          "\n"
+        )
       end) <> "\n"
   end
 
@@ -294,6 +306,7 @@ defmodule AssertCommit.CLI do
         --[no-]color      force colour on or off
         --on-error MODE   fail (default) or warn: whether a rule that crashes affects the exit status
         --timeout SECS    stop a rule that runs longer than this (default 30) and report it as an error
+        --warnings-as-errors  exit 1 when any rule warned
         --list            print the configured rule sets and rules
       """
   end

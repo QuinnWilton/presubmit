@@ -102,12 +102,14 @@ Ecto rules when those libraries are loaded or are dependencies, the release
 changelog rule when there is a `CHANGELOG.md`. The output says what was
 enabled and why.
 
-The rules that encode a *policy* are opt-in, because on real histories they
-fire on 15–40% of otherwise reasonable commits: `specs` (every new public
-function typed), `removals_deprecated` (deprecate before removing — for
-libraries), `api_changes_logged` (a changelog entry per API change),
-`behaviour_changes_tested` and `tested` (tests move with code). Turn them on
-deliberately; the file is a list of rule sets and replaces the defaults:
+The rules that encode a *policy* — `specs` (every new public function
+typed), `removals_deprecated` (deprecate before removing), `api_changes_logged`
+(a changelog entry per API change), `behaviour_changes_tested` (tests move
+with code) — run as **warnings** by default: on real histories they fire on
+15–40% of otherwise reasonable commits, so they are shown but do not block.
+`--warnings-as-errors` promotes them in CI; `warn:` in the config chooses
+per rule; `tested` is opt-in. The file is a list of rule sets and replaces
+the defaults:
 
 ```elixir
 # .assert_commit.exs
@@ -120,6 +122,7 @@ deliberately; the file is a list of rule sets and replaces the defaults:
   AssertCommit.Rules.Changelog,
   AssertCommit.Rules.Hygiene,
   {AssertCommit.Rules.Shape, max_files: 40},
+  {AssertCommit.Rules.ExUnit, only: [:behaviour_changes_tested], in: ~r{^apps/core/}},   # scoped to a path
   {AssertCommit.Rules.Message,
    subject: ~r/^\[[a-z_-]+\] /,
    scope: {~r/^\[(\w+)\]/, fn component -> ~r{^#{component}/} end}},
@@ -140,6 +143,9 @@ deliberately; the file is a list of rule sets and replaces the defaults:
 | `Hygiene` | `no_debug_calls`, `no_merge_markers`, `no_artifacts` |
 | `Shape` | `max_files`, `max_additions` |
 
+Every set takes `only:`/`except:` to select rules, `warn:` to make some of
+them non-blocking, and `in:` to restrict the set to changes under a path
+pattern (a rule set with no changes in scope is skipped).
 `mix assert_commit --list` prints the configured rules with their descriptions.
 
 ### Your own rules

@@ -77,6 +77,10 @@ defmodule AssertCommit.Formatter do
     [paint("  ✗ #{rule.name}", :red, color?) | indent(message)]
   end
 
+  defp result_lines(%Result{rule: rule, outcome: {:warn, message}}, color?) do
+    [paint("  ⚠ #{rule.name} (warning)", :yellow, color?) | indent(message)]
+  end
+
   defp result_lines(
          %Result{rule: rule, outcome: {:error, %AssertCommit.RuleTimeoutError{} = e, _}},
          color?
@@ -95,12 +99,13 @@ defmodule AssertCommit.Formatter do
     do: text |> String.split("\n") |> Enum.map(&if(&1 == "", do: "", else: "      " <> &1))
 
   defp summary(counts, status, color?) do
-    total = counts.pass + counts.fail + counts.skip + counts.error
+    total = counts.pass + counts.fail + counts.warn + counts.skip + counts.error
 
     parts =
       [
         {counts.pass, "passed"},
         {counts.fail, "failed"},
+        {counts.warn, "warned"},
         {counts.skip, "skipped"},
         {counts.error, "errored"}
       ]
@@ -125,6 +130,7 @@ defmodule AssertCommit.Formatter do
           case outcome do
             :pass -> Map.put(base, :status, :pass)
             {:fail, message} -> Map.merge(base, %{status: :fail, message: message})
+            {:warn, message} -> Map.merge(base, %{status: :warn, message: message})
             {:skip, reason} -> Map.merge(base, %{status: :skip, message: reason})
             {:error, e, _} -> Map.merge(base, %{status: :error, message: Exception.message(e)})
           end

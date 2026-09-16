@@ -9,6 +9,9 @@ defmodule AssertCommit.RunnerTest do
   defp rules do
     [
       Rule.new(:ok, "passes", fn _ -> :ok end),
+      Rule.new(:soft, "warns", fn _ -> raise AssertCommit.Violation, message: "meh" end,
+        severity: :warn
+      ),
       Rule.new(:bad, "fails", fn _ ->
         raise AssertCommit.Violation, message: "line one\n\nline three"
       end),
@@ -21,12 +24,14 @@ defmodule AssertCommit.RunnerTest do
 
     assert Enum.map(report.results, &{&1.rule.id, &1.outcome}) == [
              {:ok, :pass},
+             {:soft, {:warn, "meh"}},
              {:bad, {:fail, "line one\n\nline three"}},
              {:skip, {:skip, "not configured"}}
            ]
 
     assert Report.status(report) == :fail
-    assert Report.counts(report) == %{pass: 1, fail: 1, skip: 1, error: 0}
+    assert Report.warnings?(report)
+    assert Report.counts(report) == %{pass: 1, fail: 1, warn: 1, skip: 1, error: 0}
     assert Report.status(Runner.run(Commit.new(after: %{}), [hd(rules())])) == :pass
   end
 
@@ -85,9 +90,10 @@ defmodule AssertCommit.RunnerTest do
 
       assert text =~ "Examining synthetic change set\n"
       assert text =~ "\n  ✓ passes\n"
+      assert text =~ "\n  ⚠ warns (warning)\n      meh\n"
       assert text =~ "\n  ✗ fails\n      line one\n\n      line three\n"
       assert text =~ "\n  - skips (skipped: not configured)\n"
-      assert text =~ "3 rules: 1 passed, 1 failed, 1 skipped\n"
+      assert text =~ "4 rules: 1 passed, 1 failed, 1 warned, 1 skipped\n"
     end
 
     test "text describes commits, the index, and the working tree", %{repo: repo} do
@@ -120,6 +126,7 @@ defmodule AssertCommit.RunnerTest do
       assert json =~ ~s|"source":"rev"|
       assert json =~ ~s|"sha":"#{commit.sha}"|
       assert json =~ ~s|"status":"fail"|
+      assert json =~ ~s|{"id":"soft","message":"meh","name":"warns","set":"nil","status":"warn"}|
 
       assert json =~
                ~s|{"id":"bad","message":"line one\\n\\nline three","name":"fails","set":"nil","status":"fail"}|

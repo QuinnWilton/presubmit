@@ -261,6 +261,24 @@ defmodule AssertCommit.CommitTest do
     end
   end
 
+  describe "Commit.restrict/2" do
+    test "narrows the changes and the structural diff but keeps the trees whole" do
+      commit =
+        Commit.new(
+          after: %{
+            "apps/a/lib/a.ex" => "defmodule A do\n  def f, do: 1\nend\n",
+            "apps/b/lib/b.ex" => "defmodule B do\n  def g, do: 1\nend\n"
+          }
+        )
+
+      scoped = Commit.restrict(commit, ~r{^apps/a/})
+      assert Enum.map(scoped.changes, & &1.path) == ["apps/a/lib/a.ex"]
+      assert modules_added(scoped) == [A]
+      assert AssertCommit.Tree.exists?(scoped.after, "apps/b/lib/b.ex")
+      assert modules_added(commit) == [A, B]
+    end
+  end
+
   describe "Query.formatting_only?/1" do
     test "true for a whitespace-only edit" do
       assert formatting_only?(Commit.new(before: %{"a" => "x=1\n"}, after: %{"a" => "x = 1\n"}))

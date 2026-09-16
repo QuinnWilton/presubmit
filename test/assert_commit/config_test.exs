@@ -17,6 +17,7 @@ defmodule AssertCommit.ConfigTest do
       assert enabled(config) == [
                Rules.Elixir,
                Rules.OTP,
+               Rules.ExUnit,
                Rules.Mix,
                Rules.Message,
                Rules.Hygiene,
@@ -27,11 +28,15 @@ defmodule AssertCommit.ConfigTest do
       assert config.path == nil
 
       ids = Enum.map(config.rules, &{&1.set, &1.id})
-      assert {Rules.Elixir, :moduledoc} in ids and {Rules.Elixir, :pure_move} in ids
-      refute {Rules.Elixir, :specs} in ids
-      refute {Rules.Elixir, :removals_deprecated} in ids
-      refute Enum.any?(ids, &match?({Rules.ExUnit, _}, &1))
-      refute {Rules.Changelog, :api_changes_logged} in ids
+      severity = Map.new(config.rules, &{{&1.set, &1.id}, &1.severity})
+
+      assert severity[{Rules.Elixir, :moduledoc}] == :error and
+               severity[{Rules.Elixir, :pure_move}] == :error
+
+      assert severity[{Rules.Elixir, :specs}] == :warn
+      assert severity[{Rules.Elixir, :removals_deprecated}] == :warn
+      assert severity[{Rules.ExUnit, :behaviour_changes_tested}] == :warn
+      refute {Rules.ExUnit, :tested} in ids
       assert {Rules.Message, :no_fixup} in ids
       refute {Rules.Message, :subject} in ids
     end
@@ -49,6 +54,7 @@ defmodule AssertCommit.ConfigTest do
       assert {Rules.Phoenix, :enabled, ["phoenix is a dependency"]} in config.detection
       assert {Rules.Ecto, :enabled, ["ecto is a dependency"]} in config.detection
       assert {Rules.Changelog, :enabled, ["CHANGELOG.md present"]} in config.detection
+      assert Enum.find(config.rules, &(&1.id == :api_changes_logged)).severity == :warn
 
       assert Config.default(
                commit: Commit.new(after: %{"CHANGELOG.md" => ""}),
@@ -82,6 +88,7 @@ defmodule AssertCommit.ConfigTest do
                Rules.Phoenix,
                Rules.Ecto,
                Rules.OTP,
+               Rules.ExUnit,
                Rules.Mix,
                Rules.Changelog,
                Rules.Message,

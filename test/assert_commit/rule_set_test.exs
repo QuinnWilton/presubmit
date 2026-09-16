@@ -128,6 +128,35 @@ defmodule AssertCommit.RuleSetTest do
     assert reason =~ "needs a commit message"
   end
 
+  test "warn: turns a failure into a warning; in: restricts the change set" do
+    [warned] = RuleSet.expand({Sample, only: [:never], warn: [:never]})
+    assert warned.severity == :warn
+    assert Rule.run(warned, commit()) == {:warn, "nope"}
+
+    assert_raise ArgumentError, ~r/has no rule :nope/, fn ->
+      RuleSet.expand({Sample, warn: [:nope]})
+    end
+
+    defmodule Counting do
+      use AssertCommit.RuleSet
+
+      rule :count, "counts changes", fn commit ->
+        raise AssertCommit.Violation, message: "#{length(commit.changes)} changes"
+      end
+    end
+
+    wide =
+      Commit.new(after: %{"apps/a/x.txt" => "1\n", "apps/b/y.txt" => "2\n", "z.txt" => "3\n"})
+
+    [scoped] = RuleSet.expand({Counting, in: ~r{^apps/a/}})
+    assert scoped.scope.source == "^apps/a/"
+    assert Rule.run(scoped, wide) == {:fail, "1 changes"}
+    [unscoped] = RuleSet.expand(Counting)
+    assert Rule.run(unscoped, wide) == {:fail, "3 changes"}
+    [elsewhere] = RuleSet.expand({Counting, in: ~r{^lib/}})
+    assert Rule.run(elsewhere, wide) == {:skip, "no changes under ~r/^lib\\//"}
+  end
+
   test "a rule with sources: is skipped elsewhere" do
     [rule] = RuleSet.expand({Sample, only: [:committed_only]})
     assert rule.sources == [:head, :rev]

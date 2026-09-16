@@ -30,21 +30,29 @@ defmodule AssertCommit.Runner do
       end
     end
 
+    @doc "Whether any rule warned."
+    @spec warnings?(t()) :: boolean()
+    def warnings?(%__MODULE__{results: results}),
+      do: Enum.any?(results, &match?(%{outcome: {:warn, _}}, &1))
+
     @doc "Counts of results by kind."
     @spec counts(t()) :: %{
             pass: non_neg_integer(),
             fail: non_neg_integer(),
+            warn: non_neg_integer(),
             skip: non_neg_integer(),
             error: non_neg_integer()
           }
     def counts(%__MODULE__{results: results}) do
-      Enum.reduce(results, %{pass: 0, fail: 0, skip: 0, error: 0}, fn %{outcome: outcome}, acc ->
+      Enum.reduce(results, %{pass: 0, fail: 0, warn: 0, skip: 0, error: 0}, fn %{outcome: outcome},
+                                                                               acc ->
         Map.update!(acc, kind(outcome), &(&1 + 1))
       end)
     end
 
     defp kind(:pass), do: :pass
     defp kind({:fail, _}), do: :fail
+    defp kind({:warn, _}), do: :warn
     defp kind({:skip, _}), do: :skip
     defp kind({:error, _, _}), do: :error
   end
