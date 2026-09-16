@@ -129,6 +129,130 @@ defmodule Presubmit.PropertiesTest do
     defp last(module), do: module |> Module.split() |> List.last()
   end
 
+  describe "the facts cache" do
+    # Whatever the cache holds, extraction must equal an uncached extraction of the same content at
+    # the same path; identical blobs at different paths, and clears at any point, must not matter.
+    property "is transparent" do
+      source =
+        one_of([
+          constant("defmodule A do\n  def f, do: 1\nend\n"),
+          constant("defmodule B do\nend\n"),
+          constant("not elixir(")
+        ])
+
+      step =
+        one_of([constant(:clear), tuple({member_of(["x/a.ex", "y/b.ex", "z/c.exs"]), source})])
+
+      check all(steps <- list_of(step, min_length: 1, max_length: 12), max_runs: 40) do
+        for s <- steps do
+          case s do
+            :clear ->
+              Facts.clear_cache()
+
+            {path, src} ->
+              blob = "blob-#{:erlang.phash2(src)}"
+
+              tree = %Presubmit.Tree{
+                oid: "t-#{:erlang.phash2({path, src})}",
+                paths: MapSet.new([path]),
+                reader: fn _ -> {:ok, src} end,
+                blobs: %{path => blob}
+              }
+
+              assert Facts.extract(tree, path) == Facts.from_source(src, path)
+          end
+        end
+      end
+    end
+  end
+
+  describe "the Phoenix router adapter" do
+    alias Presubmit.Adapters.PhoenixRouter
+
+    defp scope_segment,
+      do: string(?a..?z, min_length: 1, max_length: 4) |> map(&String.capitalize/1)
+
+    # A random nesting of scopes, each with a positional alias, an `alias:` option, `alias: false`,
+    # or none, with one route at the innermost level.
+    defp scopes_gen do
+      list_of(
+        one_of([
+          tuple({:positional, scope_segment()}),
+          tuple({:option, scope_segment()}),
+          constant(:none),
+          constant(:off)
+        ]),
+        max_length: 4
+      )
+    end
+
+    property "plugs resolve to the concatenation of enclosing scope aliases, as Phoenix does" do
+      check all(scopes <- scopes_gen(), plug <- scope_segment(), max_runs: 60) do
+        {open, close} =
+          Enum.map_reduce(scopes, [], fn s, _ ->
+            {case s do
+               {:positional, a} -> "scope \"/\", #{a} do"
+               {:option, a} -> "scope \"/\", alias: #{a} do"
+               :none -> "scope \"/\" do"
+               :off -> "scope \"/\", alias: false do"
+             end, nil}
+          end)
+          |> then(fn {opens, _} -> {opens, List.duplicate("end", length(opens))} end)
+
+        source =
+          ["defmodule R do", "use Phoenix.Router"] ++
+            open ++ ["get \"/\", #{plug}, :index"] ++ close ++ ["end"]
+
+        {:ok, %Facts{modules: [m]}} = Facts.from_source(Enum.join(source, "\n"))
+        [route] = PhoenixRouter.extract(m).routes
+
+        # Model: aliases accumulate until `alias: false` resets the prefix.
+        prefix =
+          Enum.reduce(scopes, [], fn
+            {:positional, a}, acc -> acc ++ [a]
+            {:option, a}, acc -> acc ++ [a]
+            :none, acc -> acc
+            :off, _acc -> []
+          end)
+
+        assert route.plug == Module.concat(Enum.map(prefix ++ [plug], &String.to_atom/1))
+      end
+    end
+  end
+
+  describe "RuleSet.expand/1" do
+    alias Presubmit.{Rules, RuleSet}
+
+    property "only:, except:, warn:, and in: compose as sets" do
+      ids = Enum.map(Rules.Ecto.rules(), & &1.id)
+
+      # A subset of the ids as a mask; `uniq_list_of` over a five-element pool exhausts its tries.
+      subset =
+        map(list_of(boolean(), length: length(ids)), fn mask ->
+          for {id, true} <- Enum.zip(ids, mask), do: id
+        end)
+
+      check all(
+              only <- one_of([constant(nil), filter(subset, &(&1 != []))]),
+              except <- subset,
+              warn <- subset,
+              scoped? <- boolean()
+            ) do
+        opts =
+          [except: except, warn: warn] ++
+            if(only, do: [only: only], else: []) ++ if(scoped?, do: [in: ~r{^apps/}], else: [])
+
+        rules = RuleSet.expand({Rules.Ecto, opts})
+        selected = Enum.map(rules, & &1.id)
+
+        assert selected == Enum.filter(ids, &((is_nil(only) or &1 in only) and &1 not in except))
+        for r <- rules, do: assert(r.severity == if(r.id in warn, do: :warn, else: :error))
+        for r <- rules, do: assert(r.scope != nil == scoped?)
+        assert_raise ArgumentError, fn -> RuleSet.expand({Rules.Ecto, only: [:no_such_rule]}) end
+      end
+    end
+  end
+
   describe "Facts" do
     # Reserved words (`fn`, `do`, `end`, ...) are not valid function names.
     @reserved ~w(fn do end else after rescue catch true false nil and or not in when)

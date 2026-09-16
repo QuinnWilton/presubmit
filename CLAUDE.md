@@ -41,7 +41,7 @@ mix dialyzer                  # static analysis
 - Unit tests mirror `lib/` in `test/presubmit/`; adapters are tested from source strings via `Facts.from_source/2`; the CLI through `Presubmit.CLI.main/2` with `ci:` injected.
 - `test/scenarios/*_test.exs` are the cookbook: `run_rule(Rules.X, :id, scenario(repo, :name), opts)` via `Presubmit.RuleHelpers`, every rule shown passing and failing, and no module or path names in the rules — derive any name a failure message needs from a query on the commit.
 - `test/presubmit_dogfood_test.exs` runs `.presubmit.exs` against this repository's `HEAD`; excluded when `HEAD~1` is unavailable.
-- Property tests: `Hunk.diff/2` reconstructs the after text; message trailers round-trip.
+- Property tests: `Hunk.diff/2` reconstructs the after text; message trailers round-trip. `test/presubmit/oracle_properties_test.exs` uses git as the oracle (`interpret-trailers --parse`, `stripspace --strip-comments`, `diff --numstat`); note git's xdiff is not a minimal edit script even with `--minimal`, so only line deltas and script length bounds are compared. `git stripspace` reads stdin only, so the test goes through `sh -c` with a file redirect.
 
 ## Gotchas
 
