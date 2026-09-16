@@ -120,16 +120,27 @@ defmodule Presubmit.RuleSet do
   """
   defmacro rule(id, name, check, attrs \\ []) do
     quote do
-      @presubmit_rules unquote(id)
+      @presubmit_rules {unquote(id), unquote(name), unquote(attrs)}
       @doc false
       def __rule__(unquote(id)), do: {unquote(name), unquote(check), unquote(attrs)}
     end
   end
 
+  # Appends the set's rules to its @moduledoc, so every rule set documents itself on hexdocs.
   defmacro __before_compile__(env) do
+    rules = env.module |> Module.get_attribute(:presubmit_rules) |> Enum.reverse()
+    moduledoc = Module.get_attribute(env.module, :moduledoc)
+
     description =
-      Module.get_attribute(env.module, :presubmit_description) ||
-        first_line(Module.get_attribute(env.module, :moduledoc))
+      Module.get_attribute(env.module, :presubmit_description) || first_line(moduledoc)
+
+    case moduledoc do
+      {line, doc} when is_binary(doc) ->
+        Module.put_attribute(env.module, :moduledoc, {line, doc <> rules_section(rules)})
+
+      _ ->
+        :ok
+    end
 
     quote do
       @impl true
@@ -137,12 +148,34 @@ defmodule Presubmit.RuleSet do
 
       @impl true
       def rules(opts \\ []) do
-        for id <- Enum.reverse(@presubmit_rules) do
+        for {id, _name, _attrs} <- Enum.reverse(@presubmit_rules) do
           {name, check, attrs} = __rule__(id)
           Rule.new(id, name, check, [set: __MODULE__, opts: opts] ++ attrs)
         end
       end
     end
+  end
+
+  defp rules_section([]), do: ""
+
+  defp rules_section(rules) do
+    items =
+      Enum.map_join(rules, "\n", fn {id, name, attrs} ->
+        notes =
+          Enum.reject(
+            [
+              if(attrs[:sources],
+                do: "only on #{Enum.map_join(attrs[:sources], "/", &inspect/1)}"
+              ),
+              if(attrs[:severity] == :warn, do: "warns by default")
+            ],
+            &is_nil/1
+          )
+
+        "- `#{id}` — #{name}#{if notes == [], do: "", else: " (#{Enum.join(notes, "; ")})"}"
+      end)
+
+    "\n\n## Rules\n\n" <> items <> "\n"
   end
 
   defp first_line({_line, doc}) when is_binary(doc),

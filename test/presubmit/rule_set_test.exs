@@ -174,6 +174,16 @@ defmodule Presubmit.RuleSetTest do
     assert Rule.exemptions(Commit.new(after: %{}, message: "s\n\nNo-Presubmit: false\n")) == []
   end
 
+  test "a rule set's moduledoc lists its rules" do
+    {:docs_v1, _, _, _, %{"en" => doc}, _, _} = Code.fetch_docs(Presubmit.Rules.Ecto)
+
+    assert doc =~
+             "## Rules\n\n- `migrations_ordered` — added migrations are newer than every existing one\n"
+
+    {:docs_v1, _, _, _, %{"en" => message_doc}, _, _} = Code.fetch_docs(Presubmit.Rules.Message)
+    assert message_doc =~ "- `no_fixup` — no fixup!/squash!/amend! commits (only on :head/:rev)"
+  end
+
   test "a rule with sources: is skipped elsewhere" do
     [rule] = RuleSet.expand({Sample, only: [:committed_only]})
     assert rule.sources == [:head, :rev]
