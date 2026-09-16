@@ -8,14 +8,13 @@ defmodule Presubmit.Source.Facts do
   can be extracted from any revision regardless of whether its dependencies
   are available.
 
-  Facts for git-backed trees are memoised by blob object id and path, in an
-  ETS table shared by every process: facts are a pure function of a file's
-  contents and its path, so a range of commits parses each distinct version
-  of a file exactly once.
-  The table is bounded (cleared when it exceeds 50 000 entries) and can be
-  emptied with `clear_cache/0`.
+  Facts for git-backed trees are memoised by blob object id and path in
+  `Presubmit.Source.Cache`, shared by every process: facts are a pure
+  function of a file's contents and its path, so a range of commits parses
+  each distinct version of a file exactly once. `clear_cache/0` empties it.
   """
 
+  alias Presubmit.Source.Cache
   alias Presubmit.Tree
 
   defmodule Function do
@@ -131,9 +130,6 @@ defmodule Presubmit.Source.Facts do
 
   Returns `{:error, reason}` when the file is missing or does not parse.
   """
-  @cache :presubmit_facts
-  @cache_limit 50_000
-
   @spec extract(Tree.t(), String.t()) :: {:ok, t()} | {:error, term()}
   def extract(%Tree{} = tree, path) do
     case Tree.blob(tree, path) do
@@ -143,15 +139,7 @@ defmodule Presubmit.Source.Facts do
       blob ->
         # Facts carry the path (modules, functions, migration versions), so identical blobs at
         # different paths are different facts.
-        case cache_get({blob, path}) do
-          {:ok, result} ->
-            result
-
-          :miss ->
-            result = do_extract(tree, path)
-            cache_put({blob, path}, result)
-            result
-        end
+        Cache.fetch({blob, path}, fn -> do_extract(tree, path) end)
     end
   end
 
@@ -160,55 +148,13 @@ defmodule Presubmit.Source.Facts do
   def cached?(%Tree{} = tree, path) do
     case Tree.blob(tree, path) do
       nil -> false
-      blob -> match?({:ok, _}, cache_get({blob, path}))
+      blob -> match?({:ok, _}, Cache.get({blob, path}))
     end
   end
 
   @doc "Drops every cached fact set."
   @spec clear_cache() :: :ok
-  def clear_cache do
-    if :ets.whereis(@cache) != :undefined, do: :ets.delete_all_objects(@cache)
-    :ok
-  end
-
-  # Facts are a pure function of a blob's contents, so the cache is keyed by blob oid and shared
-  # by every process: a range of commits parses each distinct file version once. The table is
-  # created by whoever needs it first; if that process dies the next user recreates it.
-  defp cache_get(key) do
-    case :ets.whereis(@cache) do
-      :undefined ->
-        :miss
-
-      tid ->
-        case :ets.lookup(tid, key) do
-          [{^key, result}] -> {:ok, result}
-          [] -> :miss
-        end
-    end
-  rescue
-    ArgumentError -> :miss
-  end
-
-  defp cache_put(key, result) do
-    tid =
-      case :ets.whereis(@cache) do
-        :undefined -> create_cache()
-        tid -> tid
-      end
-
-    if :ets.info(tid, :size) > @cache_limit, do: :ets.delete_all_objects(tid)
-    :ets.insert(tid, {key, result})
-    :ok
-  rescue
-    ArgumentError -> :ok
-  end
-
-  defp create_cache do
-    :ets.new(@cache, [:named_table, :public, :set, read_concurrency: true])
-  rescue
-    # Another process created it first.
-    ArgumentError -> :ets.whereis(@cache)
-  end
+  def clear_cache, do: Cache.clear()
 
   @doc "Extracts facts, returning an empty fact set for missing or unparseable files."
   @spec extract!(Tree.t(), String.t()) :: t()
