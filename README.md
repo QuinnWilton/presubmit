@@ -9,7 +9,7 @@ working tree against rules that understand Elixir, such as "an added
 controller is routed", "an added migration sorts last", and "a move contains
 nothing but the move".
 
-The idea and the name come from Chromium's [`PRESUBMIT.py`](https://chromium.googlesource.com/chromium/src/+/main/docs/infra/presubmit.md).
+The idea and the name come from Chromium's [`PRESUBMIT.py`](https://www.chromium.org/developers/how-tos/depottools/presubmit-scripts/).
 
 ## Setup
 
