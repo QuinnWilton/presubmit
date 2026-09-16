@@ -63,7 +63,8 @@ so every rule — message rules included — runs before the commit exists. A
 companion `prepare-commit-msg` hook notices `git commit --amend` and has the
 amended commit checked (`HEAD^` to the index) instead of the delta since
 `HEAD`, which could never satisfy a rule whose other half is in the original
-commit. Add `--pre-commit` for an earlier content-only pass before the editor
+commit (git does not report an amend combined with `-m`/`-F`; use the
+editor or `--no-edit`, or `mix presubmit --staged --base HEAD^`). Add `--pre-commit` for an earlier content-only pass before the editor
 opens; `--uninstall` removes them all. The hooks step aside with a note
 while a merge is in progress, when amending a merge, and when `mix` is not
 on `PATH` (GUI clients often lack your shell environment); a rule that

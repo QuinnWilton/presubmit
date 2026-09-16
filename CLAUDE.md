@@ -56,6 +56,8 @@ mix dialyzer                  # static analysis
 - Map key order is not stable across OTP versions; `Presubmit.JSON` sorts keys.
 - macOS temp dirs are symlinks (`/var` → `/private/var`); compare paths by suffix in tests, and let git compute relative paths (`--show-prefix`).
 - Rules that only make sense on a commit declare `sources: [:head, :rev]`; in a hook the change set is `:staged`.
+- `git commit --amend -m …` reaches `prepare-commit-msg` with source `message`, not `commit`: undetectable as an amend. Editor/`--no-edit` amends are detected.
+- A commit can exempt itself with `Presubmit-Skip:`/`No-Presubmit:` trailers; prefer that to `--no-verify` so the decision is in history.
 
 ## CI
 

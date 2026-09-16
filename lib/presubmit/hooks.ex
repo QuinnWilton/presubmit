@@ -13,6 +13,11 @@ defmodule Presubmit.Hooks do
     amended commit — rather than the delta since `HEAD`, which could never
     satisfy a rule whose other half lives in the original commit.
 
+  Git reports the message source as `message` rather than `commit` when
+  `--amend` is combined with `-m` or `-F`, so that form of amend is not
+  detected and the delta since `HEAD` is what gets checked; amend with the
+  editor or `--no-edit`, or run `mix presubmit --staged --base HEAD^`.
+
   The hooks step aside, with a note, when they cannot do a sensible job:
   while a merge is in progress or when amending a merge commit (the change
   set would be someone else's branch), and when `mix` is not on `PATH` (GUI
