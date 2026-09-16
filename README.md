@@ -4,17 +4,12 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/presubmit.svg)](https://hex.pm/packages/presubmit)
 [![Docs](https://img.shields.io/badge/docs-hexdocs-blue.svg)](https://hexdocs.pm/presubmit)
 
-A linter for git commits. It parses the Elixir a change touched into
-modules, functions, routes, schema fields, and child specs — without
-compiling anything — and checks the commit, the staged index, or the working
-tree against rules like "an added controller is routed", "an added migration
-sorts last", and "a move contains nothing but the move".
+A linter for git commits. It checks the commit, the staged index, or the
+working tree against rules that understand Elixir, such as "an added
+controller is routed", "an added migration sorts last", and "a move contains
+nothing but the move".
 
-The idea and the name come from Chromium's [`PRESUBMIT.py`](https://chromium.googlesource.com/chromium/src/+/main/docs/infra/presubmit.md):
-checks that run on a change before it lands, once locally and again as the
-gate, with severities and per-directory scoping. This is that for Elixir
-projects whose unit of change is the commit, with the checks aware of what
-the code means rather than what its text looks like.
+The idea and the name come from Chromium's [`PRESUBMIT.py`](https://chromium.googlesource.com/chromium/src/+/main/docs/infra/presubmit.md).
 
 ## Setup
 
@@ -68,16 +63,16 @@ options. A commit can exempt itself with a `Presubmit-Skip: rule, rule` or
 
 Each set documents its rules and options:
 
-- [`Presubmit.Rules.Elixir`](https://hexdocs.pm/presubmit/Presubmit.Rules.Elixir.html) — specs, moduledocs, deprecation before removal, pure moves
-- [`Presubmit.Rules.Phoenix`](https://hexdocs.pm/presubmit/Presubmit.Rules.Phoenix.html) — added controllers and LiveViews are routed
-- [`Presubmit.Rules.Ecto`](https://hexdocs.pm/presubmit/Presubmit.Rules.Ecto.html) — migrations ordered, immutable, concurrent, reversible; schema columns migrated
-- [`Presubmit.Rules.OTP`](https://hexdocs.pm/presubmit/Presubmit.Rules.OTP.html) — added processes are supervised
-- [`Presubmit.Rules.ExUnit`](https://hexdocs.pm/presubmit/Presubmit.Rules.ExUnit.html) — tests move with code
-- [`Presubmit.Rules.Mix`](https://hexdocs.pm/presubmit/Presubmit.Rules.Mix.html) — `mix.lock` in sync
-- [`Presubmit.Rules.Changelog`](https://hexdocs.pm/presubmit/Presubmit.Rules.Changelog.html) — API changes and releases logged
-- [`Presubmit.Rules.Message`](https://hexdocs.pm/presubmit/Presubmit.Rules.Message.html) — subject shape, scope, trailers
-- [`Presubmit.Rules.Hygiene`](https://hexdocs.pm/presubmit/Presubmit.Rules.Hygiene.html) — no debug calls, conflict markers, or artifacts
-- [`Presubmit.Rules.Shape`](https://hexdocs.pm/presubmit/Presubmit.Rules.Shape.html) — size ceilings
+- [`Presubmit.Rules.Elixir`](https://hexdocs.pm/presubmit/Presubmit.Rules.Elixir.html): specs, moduledocs, deprecation before removal, pure moves
+- [`Presubmit.Rules.Phoenix`](https://hexdocs.pm/presubmit/Presubmit.Rules.Phoenix.html): added controllers and LiveViews are routed
+- [`Presubmit.Rules.Ecto`](https://hexdocs.pm/presubmit/Presubmit.Rules.Ecto.html): migrations ordered, immutable, concurrent, reversible; schema columns migrated
+- [`Presubmit.Rules.OTP`](https://hexdocs.pm/presubmit/Presubmit.Rules.OTP.html): added processes are supervised
+- [`Presubmit.Rules.ExUnit`](https://hexdocs.pm/presubmit/Presubmit.Rules.ExUnit.html): tests move with code
+- [`Presubmit.Rules.Mix`](https://hexdocs.pm/presubmit/Presubmit.Rules.Mix.html): `mix.lock` in sync
+- [`Presubmit.Rules.Changelog`](https://hexdocs.pm/presubmit/Presubmit.Rules.Changelog.html): API changes and releases logged
+- [`Presubmit.Rules.Message`](https://hexdocs.pm/presubmit/Presubmit.Rules.Message.html): subject shape, scope, trailers
+- [`Presubmit.Rules.Hygiene`](https://hexdocs.pm/presubmit/Presubmit.Rules.Hygiene.html): no debug calls, conflict markers, or artifacts
+- [`Presubmit.Rules.Shape`](https://hexdocs.pm/presubmit/Presubmit.Rules.Shape.html): size ceilings
 
 Your own rules are a module with `use Presubmit.RuleSet` and `rule` declarations
 over the verbs in [`Presubmit.Assertions`](https://hexdocs.pm/presubmit/Presubmit.Assertions.html)
