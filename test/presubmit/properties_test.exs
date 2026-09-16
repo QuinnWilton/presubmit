@@ -130,9 +130,12 @@ defmodule Presubmit.PropertiesTest do
   end
 
   describe "Facts" do
+    # Reserved words (`fn`, `do`, `end`, ...) are not valid function names.
+    @reserved ~w(fn do end else after rescue catch true false nil and or not in when)
+
     property "every def contributes exactly the arities its defaults generate" do
       check all(
-              name <- string(?a..?z, min_length: 1, max_length: 5),
+              name <- filter(string(?a..?z, min_length: 1, max_length: 5), &(&1 not in @reserved)),
               required <- integer(0..3),
               defaults <- integer(0..3)
             ) do
