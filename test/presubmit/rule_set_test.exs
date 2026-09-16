@@ -20,6 +20,8 @@ defmodule Presubmit.RuleSetTest do
     end
 
     rule :crashes, "raises something else", fn _commit -> raise ArgumentError, "boom" end
+    rule :exits, "exits", fn _commit -> exit(:boom) end
+    rule :throws, "throws", fn _commit -> throw(:ball) end
     rule(:committed_only, "only on commits", fn _commit -> :ok end, sources: [:head, :rev])
   end
 
@@ -33,6 +35,8 @@ defmodule Presubmit.RuleSetTest do
                {:with_opts, Sample, [strict: true]},
                {:skips, Sample, [strict: true]},
                {:crashes, Sample, [strict: true]},
+               {:exits, Sample, [strict: true]},
+               {:throws, Sample, [strict: true]},
                {:committed_only, Sample, [strict: true]}
              ]
   end
@@ -44,6 +48,8 @@ defmodule Presubmit.RuleSetTest do
              :with_opts,
              :skips,
              :crashes,
+             :exits,
+             :throws,
              :committed_only
            ]
 
@@ -53,7 +59,9 @@ defmodule Presubmit.RuleSetTest do
            ]
 
     assert Enum.map(
-             RuleSet.expand({Sample, except: [:never, :crashes, :committed_only]}),
+             RuleSet.expand(
+               {Sample, except: [:never, :crashes, :exits, :throws, :committed_only]}
+             ),
              & &1.id
            ) == [
              :always,
@@ -85,6 +93,8 @@ defmodule Presubmit.RuleSetTest do
     assert run.(:skips, []) == {:skip, "no thing"}
     assert run.(:skips, thing: 1) == :pass
     assert {:error, %ArgumentError{message: "boom"}, [_ | _]} = run.(:crashes, [])
+    assert {:error, %RuntimeError{message: "rule exited: :boom"}, _} = run.(:exits, [])
+    assert {:error, %RuntimeError{message: "rule threw: :ball"}, _} = run.(:throws, [])
   end
 
   describe "requires/0 and applicable?/2" do

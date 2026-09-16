@@ -138,5 +138,12 @@ defmodule Presubmit.Rule do
 
     e ->
       {:error, e, __STACKTRACE__}
+  catch
+    # A rule that exits or throws must not take the worker (and the linked runner) down with it.
+    :exit, reason ->
+      {:error, %RuntimeError{message: "rule exited: #{inspect(reason)}"}, __STACKTRACE__}
+
+    :throw, value ->
+      {:error, %RuntimeError{message: "rule threw: #{inspect(value)}"}, __STACKTRACE__}
   end
 end

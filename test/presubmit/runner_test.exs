@@ -66,6 +66,31 @@ defmodule Presubmit.RunnerTest do
     assert text =~ "! slow: rule :slow did not finish within 0s and was stopped"
   end
 
+  test "a rule that exits does not take the run down" do
+    rules = [
+      Rule.new(:exits, "exits", fn _ -> exit(:boom) end),
+      Rule.new(:ok, "ok", fn _ -> :ok end)
+    ]
+
+    report = Runner.run(Commit.new(after: %{}), rules)
+
+    assert [
+             %{outcome: {:error, %RuntimeError{message: "rule exited: :boom"}, _}},
+             %{outcome: :pass}
+           ] = report.results
+  end
+
+  test "a result sent just before the timeout kill never lingers in the mailbox" do
+    # The rule finishes right around the deadline, so the worker may send its result before it is killed.
+    for _ <- 1..20 do
+      Runner.run(Commit.new(after: %{}), [Rule.new(:edge, "edge", fn _ -> Process.sleep(5) end)],
+        timeout: 5
+      )
+    end
+
+    assert {:message_queue_len, 0} = Process.info(self(), :message_queue_len)
+  end
+
   test "run_range/3 runs every non-merge commit oldest first", %{repo: repo} do
     reports =
       Runner.run_range(

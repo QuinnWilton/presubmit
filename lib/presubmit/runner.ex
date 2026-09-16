@@ -98,9 +98,19 @@ defmodule Presubmit.Runner do
     after
       timeout ->
         Task.shutdown(worker, :brutal_kill)
+        # A result sent in the instant before the kill would otherwise sit in the mailbox forever.
+        flush(ref)
         error = %Presubmit.RuleTimeoutError{rule: rule.id, timeout: timeout}
 
         run_rules(rest, commit, timeout, [%Result{rule: rule, outcome: {:error, error, []}} | acc])
+    end
+  end
+
+  defp flush(ref) do
+    receive do
+      {^ref, _, _} -> flush(ref)
+    after
+      0 -> :ok
     end
   end
 
