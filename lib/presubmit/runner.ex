@@ -78,26 +78,43 @@ defmodule Presubmit.Runner do
     parent = self()
     ref = make_ref()
 
+    # A plain linked process rather than a Task: the protocol needs only spawn, monitor, and
+    # kill, which keeps it within what Concuerror can model (see test/concuerror).
     worker =
-      Task.async(fn ->
+      spawn_link(fn ->
         Enum.each(rules, fn rule -> send(parent, {ref, rule.id, Rule.run(rule, commit)}) end)
       end)
 
-    collect(rules, worker, ref, commit, timeout, acc)
+    monitor = Process.monitor(worker)
+    collect(rules, {worker, monitor}, ref, commit, timeout, acc)
   end
 
-  defp collect([], worker, _ref, _commit, _timeout, acc) do
-    Task.await(worker, :infinity)
-    Enum.reverse(acc)
+  defp collect([], {_worker, monitor}, _ref, _commit, _timeout, acc) do
+    receive do
+      {:DOWN, ^monitor, :process, _, _} -> Enum.reverse(acc)
+    end
   end
 
-  defp collect([rule | rest], worker, ref, commit, timeout, acc) do
+  defp collect([rule | rest] = rules, {worker, monitor}, ref, commit, timeout, acc) do
     receive do
       {^ref, id, outcome} when id == rule.id ->
-        collect(rest, worker, ref, commit, timeout, [%Result{rule: rule, outcome: outcome} | acc])
+        collect(rest, {worker, monitor}, ref, commit, timeout, [
+          %Result{rule: rule, outcome: outcome} | acc
+        ])
+
+      {:DOWN, ^monitor, :process, _, reason} ->
+        # Rule.run catches everything a rule can raise, so this is an external kill.
+        error = %RuntimeError{message: "rule worker exited: #{inspect(reason)}"}
+        Enum.reverse(acc, Enum.map(rules, &%Result{rule: &1, outcome: {:error, error, []}}))
     after
       timeout ->
-        Task.shutdown(worker, :brutal_kill)
+        Process.unlink(worker)
+        Process.exit(worker, :kill)
+
+        receive do
+          {:DOWN, ^monitor, :process, _, _} -> :ok
+        end
+
         # A result sent in the instant before the kill would otherwise sit in the mailbox forever.
         flush(ref)
         error = %Presubmit.RuleTimeoutError{rule: rule.id, timeout: timeout}

@@ -16,6 +16,7 @@
 - Library-aware adapters implementing `Presubmit.Adapter`: `PhoenixRouter`, `PhoenixHandler`, `EctoSchema`, `EctoMigration`, `OtpProcess`, `ExUnitCase`; plus `Presubmit.MixFile` and `Presubmit.Changelog` parsers.
 - Assertion verbs raising `Presubmit.Violation`: library-aware (`assert_routed`, `assert_migrations_ordered`, `assert_schema_changes_migrated`, `assert_supervised`, `assert_tested`, `assert_lock_in_sync`, `assert_api_changes_logged`, …), Elixir-source (`assert_specs`, `assert_moduledoc`, `assert_removals_deprecated`, `assert_pure_move`, `assert_references`), file, line, message, and shape.
 - The facts cache is its own module, `Presubmit.Source.Cache`, so the concurrent protocol (table creation, owner death, bounding) is isolated and model-checked with Concuerror.
+- Rules run in a plain linked worker instead of a `Task`; a worker killed from outside is reported as an error on the remaining rules rather than crashing the caller.
 - A rule that exits or throws is reported as an error instead of crashing the run; a result sent by a worker in the instant before a timeout kill is flushed rather than left in the mailbox.
 - The facts cache is keyed by blob *and* path: facts carry the path, so identical files at different paths must not share an entry (found by CI running tests in a different order).
 - Rule sets document themselves: `use Presubmit.RuleSet` appends a "Rules" section (id, name, source/severity notes) to the set's `@moduledoc`.
