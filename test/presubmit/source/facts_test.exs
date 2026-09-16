@@ -194,6 +194,27 @@ defmodule Presubmit.Source.FactsTest do
   end
 
   describe "caching" do
+    test "the same blob at two paths yields facts with each path" do
+      reader = fn _ -> {:ok, "defmodule Same do\nend\n"} end
+      blob = "blob-#{System.unique_integer([:positive])}"
+
+      a = %Presubmit.Tree{
+        oid: "t1",
+        paths: MapSet.new(["x/a.ex"]),
+        reader: reader,
+        blobs: %{"x/a.ex" => blob}
+      }
+
+      b = %Presubmit.Tree{
+        oid: "t2",
+        paths: MapSet.new(["y/b.ex"]),
+        reader: reader,
+        blobs: %{"y/b.ex" => blob}
+      }
+
+      assert {:ok, %Facts{modules: [%{path: "x/a.ex"}]}} = Facts.extract(a, "x/a.ex")
+      assert {:ok, %Facts{modules: [%{path: "y/b.ex"}]}} = Facts.extract(b, "y/b.ex")
+    end
   end
 end
 

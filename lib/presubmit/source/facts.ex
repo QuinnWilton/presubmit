@@ -8,9 +8,10 @@ defmodule Presubmit.Source.Facts do
   can be extracted from any revision regardless of whether its dependencies
   are available.
 
-  Facts for git-backed trees are memoised by blob object id, in an ETS table
-  shared by every process: facts are a pure function of a file's contents,
-  so a range of commits parses each distinct version of a file exactly once.
+  Facts for git-backed trees are memoised by blob object id and path, in an
+  ETS table shared by every process: facts are a pure function of a file's
+  contents and its path, so a range of commits parses each distinct version
+  of a file exactly once.
   The table is bounded (cleared when it exceeds 50 000 entries) and can be
   emptied with `clear_cache/0`.
   """
@@ -140,13 +141,15 @@ defmodule Presubmit.Source.Facts do
         do_extract(tree, path)
 
       blob ->
-        case cache_get(blob) do
+        # Facts carry the path (modules, functions, migration versions), so identical blobs at
+        # different paths are different facts.
+        case cache_get({blob, path}) do
           {:ok, result} ->
             result
 
           :miss ->
             result = do_extract(tree, path)
-            cache_put(blob, result)
+            cache_put({blob, path}, result)
             result
         end
     end
@@ -157,7 +160,7 @@ defmodule Presubmit.Source.Facts do
   def cached?(%Tree{} = tree, path) do
     case Tree.blob(tree, path) do
       nil -> false
-      blob -> match?({:ok, _}, cache_get(blob))
+      blob -> match?({:ok, _}, cache_get({blob, path}))
     end
   end
 
@@ -171,14 +174,14 @@ defmodule Presubmit.Source.Facts do
   # Facts are a pure function of a blob's contents, so the cache is keyed by blob oid and shared
   # by every process: a range of commits parses each distinct file version once. The table is
   # created by whoever needs it first; if that process dies the next user recreates it.
-  defp cache_get(blob) do
+  defp cache_get(key) do
     case :ets.whereis(@cache) do
       :undefined ->
         :miss
 
       tid ->
-        case :ets.lookup(tid, blob) do
-          [{^blob, result}] -> {:ok, result}
+        case :ets.lookup(tid, key) do
+          [{^key, result}] -> {:ok, result}
           [] -> :miss
         end
     end
@@ -186,7 +189,7 @@ defmodule Presubmit.Source.Facts do
     ArgumentError -> :miss
   end
 
-  defp cache_put(blob, result) do
+  defp cache_put(key, result) do
     tid =
       case :ets.whereis(@cache) do
         :undefined -> create_cache()
@@ -194,7 +197,7 @@ defmodule Presubmit.Source.Facts do
       end
 
     if :ets.info(tid, :size) > @cache_limit, do: :ets.delete_all_objects(tid)
-    :ets.insert(tid, {blob, result})
+    :ets.insert(tid, {key, result})
     :ok
   rescue
     ArgumentError -> :ok
