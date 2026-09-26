@@ -107,4 +107,17 @@ defmodule Presubmit.Scenarios.ShapeTest do
       for path <- added(commit), do: assert(message =~ path)
     end
   end
+
+  describe "Rules.Hygiene :no_merge_markers" do
+    test "passes on clean commits", %{repo: repo} do
+      assert_pass(run_rule(Rules.Hygiene, :no_merge_markers, scenario(repo, :lib_with_tests)))
+    end
+
+    test "fails on a stray diff3 base marker, pointing at the line", %{repo: repo} do
+      commit = scenario(repo, :diff3_marker_left_in)
+      [path] = added(commit)
+      assert_fail(run_rule(Rules.Hygiene, :no_merge_markers, commit), message)
+      assert message =~ ~r/^  #{Regex.escape(path)}:6: \|{7} parent of /m
+    end
+  end
 end

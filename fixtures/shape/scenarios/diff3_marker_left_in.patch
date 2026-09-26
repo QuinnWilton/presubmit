@@ -1,0 +1,23 @@
+From ae5d6d561e1aee39a2cacc57df36a4e84bb36b53 Mon Sep 17 00:00:00 2001
+From: Fixture <fixture@example.com>
+Date: Thu, 1 Jan 2026 01:00:00 +0000
+Subject: Log the cart total
+
+---
+ CHANGELOG.md | 7 +++++++
+ 1 file changed, 7 insertions(+)
+ create mode 100644 CHANGELOG.md
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..f8b38aa
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,7 @@
++# Changelog
++
++## Unreleased
++
++- `Shop.Cart.total/1` sums line items.
++||||||| parent of 1a2b3c4 (Add the cart)
++- `Shop.Cart` holds line items.

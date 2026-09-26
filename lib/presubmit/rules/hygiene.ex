@@ -16,9 +16,11 @@ defmodule Presubmit.Rules.Hygiene do
     refute_added_lines(commit, Keyword.get(opts, :debug, @debug), in: Presubmit.Paths.lib())
   end
 
+  # `|||||||` opens the base section of a diff3 or zdiff3 conflict and is the
+  # line most easily left behind when the others are resolved away.
   rule :no_merge_markers,
        "no conflict markers",
-       &refute_added_lines(&1, ~r/^(<{7}|={7}|>{7})( |$)/)
+       &refute_added_lines(&1, ~r/^(<{7}|\|{7}|={7}|>{7})( |$)/)
 
   rule :no_artifacts, "no build artifacts or editor droppings", fn commit, opts ->
     refute_added(commit, Keyword.get(opts, :artifacts, @artifacts))
