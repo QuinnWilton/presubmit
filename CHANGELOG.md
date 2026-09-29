@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- `Rules.Changelog` `:release_logged` passes a commit that creates `mix.exs`: starting a project at 0.1.0 is not a release to log.
 - `Rules.Mix` `:lock_in_sync` names the right command for each half: `mix deps.get` locks an added dependency, and `mix deps.unlock --unused` drops a removed one's entry, which `deps.get` never does. It used to suggest `mix deps.get` for both.
 - `Rules.Message` `:subject_length` counts characters, not bytes, so an em dash or an accented letter no longer pushes a fitting subject over the limit; the failure says how long the subject is and by how much it is over, instead of quoting a regex.
 - `--color` colours the report when the output is not a terminal, as documented; it used to defer to `IO.ANSI.enabled?/0` and print plain text into a pipe.

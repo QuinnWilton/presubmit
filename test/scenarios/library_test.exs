@@ -169,6 +169,24 @@ defmodule Presubmit.Scenarios.LibraryTest do
       assert message =~ "has no `## #{new}` section"
     end
 
+    test "is vacuous for a commit that creates the project" do
+      mix_exs = """
+      defmodule P.MixProject do
+        use Mix.Project
+        def project, do: [app: :p, version: "0.1.0"]
+      end
+      """
+
+      commit =
+        Presubmit.Commit.new(
+          before: %{},
+          after: %{"mix.exs" => mix_exs, "CHANGELOG.md" => "# Changelog\n\n## Unreleased\n"}
+        )
+
+      assert MixAssertions.version_bump(commit) == {nil, "0.1.0"}
+      assert_pass(run_rule(Rules.Changelog, :release_logged, commit))
+    end
+
     test "is vacuous for non-release commits", %{repo: repo} do
       commit = scenario(repo, :api_added_with_changelog)
       assert MixAssertions.version_bump(commit) == nil

@@ -43,12 +43,16 @@ defmodule Presubmit.Assertions.Changelog do
 
   @doc """
   Asserts that when the commit bumps the version in `mix.exs`, the changelog
-  has a section for the new version.
+  has a section for the new version. A commit that creates `mix.exs` starts
+  a project rather than releasing one, so it has nothing to log.
   """
   @spec assert_release_logged(Commit.t(), String.t()) :: :ok
   def assert_release_logged(%Commit{} = commit, path \\ "CHANGELOG.md") do
     case Presubmit.Assertions.Mix.version_bump(commit) do
       nil ->
+        :ok
+
+      {nil, _new} ->
         :ok
 
       {_old, new} ->
