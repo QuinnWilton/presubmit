@@ -180,6 +180,31 @@ defmodule Presubmit.HooksTest do
       assert flag(repo) == :none
     end
 
+    test "commit-msg passes the empty tree as the base when amending a root commit", %{
+      repo: repo
+    } do
+      Git.run!(repo, ["checkout", "-q", "--orphan", "solo"])
+      Git.run!(repo, ["commit", "-q", "--allow-empty", "--no-verify", "-m", "root"])
+      assert {0, _} = hook(repo, "prepare-commit-msg", ["msg", "commit", "HEAD"])
+
+      # A `mix` that records its arguments, first on PATH.
+      bin = Path.join(repo, ".git/fake_bin")
+      File.mkdir_p!(bin)
+      File.write!(Path.join(bin, "mix"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$0.args\"\n")
+      File.chmod!(Path.join(bin, "mix"), 0o755)
+
+      {_, 0} =
+        System.cmd("sh", [Path.join(repo, ".git/hooks/commit-msg"), "msg"],
+          cd: repo,
+          env: [{"PATH", bin <> ":" <> System.get_env("PATH")}],
+          stderr_to_stdout: true
+        )
+
+      args = File.read!(Path.join(bin, "mix.args")) |> String.split("\n", trim: true)
+      assert ["presubmit", "--staged", "--base", base | _] = args
+      assert base == Git.empty_tree(repo)
+    end
+
     test "commit-msg and pre-commit skip while a merge is in progress", %{
       repo: repo,
       parent: parent

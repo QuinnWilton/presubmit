@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- The `commit-msg` hook passes the empty tree as `--base` when amending a root commit under macOS's `/bin/sh` (bash 3.2), which read the empty-tree `case` inside `$(...)` as ending at the first pattern and passed a fragment of the script instead.
 - `Rules.Hygiene` `:no_merge_markers` also refuses the `|||||||` base marker of a diff3 or zdiff3 conflict, the line most often left behind when a conflict is resolved by deleting the others.
 
 ## 0.1.0 - 2026-09-16

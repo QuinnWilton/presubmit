@@ -122,8 +122,10 @@ defmodule Presubmit.Hooks do
     """
   end
 
+  # Inside `$(...)`, bash 3.2 (macOS's /bin/sh) takes an unparenthesised case pattern's `)` as
+  # the end of the substitution; the POSIX `(pattern)` form parses everywhere.
   defp empty_tree_sh do
-    ~s|case "$(git rev-parse --show-object-format)" in sha256) echo 6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321 ;; *) echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904 ;; esac|
+    ~s|case "$(git rev-parse --show-object-format)" in (sha256) echo 6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321 ;; (*) echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904 ;; esac|
   end
 
   @doc """
