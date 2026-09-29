@@ -290,6 +290,14 @@ defmodule Presubmit.CLITest do
              run(["--repo", repo, "--head", "--timeout", "0"])
   end
 
+  test "--color colours the report even when the output is not a terminal", %{repo: repo} do
+    {1, out} = run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--color"])
+    assert out =~ IO.ANSI.red() <> "  ✗ added controllers and LiveViews are routed"
+
+    {1, out} = run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--no-color"])
+    refute out =~ "\e["
+  end
+
   test "usage and configuration errors exit 2", %{repo: repo} do
     assert {2, "error: unknown arguments: --bogus" <> _} = run(["--bogus"])
 

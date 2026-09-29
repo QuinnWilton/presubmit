@@ -153,7 +153,10 @@ defmodule Presubmit.Formatter do
   end
 
   defp paint(text, _color, false), do: text
-  defp paint(text, color, true), do: IO.ANSI.format([color, text]) |> IO.iodata_to_binary()
+
+  # `--color` forces colour: the hooks pipe the output through `tee`, where ANSI is off by default.
+  defp paint(text, color, true),
+    do: [color, text] |> IO.ANSI.format(true) |> IO.iodata_to_binary()
 
   defp with_subject(%Commit{message: nil}), do: ""
   defp with_subject(%Commit{message: %{subject: subject}}), do: " — #{subject}"
