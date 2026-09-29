@@ -11,7 +11,8 @@ defmodule Presubmit.Rules.Message do
   Options:
 
   - `subject:` — regex the subject must match (rule `:subject`; skipped without it).
-  - `max_subject_length:` — default 72 (rule `:subject_length`).
+  - `max_subject_length:` — default 72 characters, counted as graphemes (rule
+    `:subject_length`). Many policies make it a warning: `warn: [:subject_length]`.
   - `scope:` — `{regex_with_capture, (scope -> path_pattern)}`; the subject's
     scope must agree with the paths touched (rule `:scope`; skipped without it).
   - `trailers:` — list of `{trigger, key, value_regex | nil}`; when `trigger`
@@ -35,8 +36,7 @@ defmodule Presubmit.Rules.Message do
 
   rule :subject_length, "subject fits the configured length", fn commit, opts ->
     unless_exempt(commit, opts, fn ->
-      max = Keyword.get(opts, :max_subject_length, 72)
-      assert_subject(commit, ~r/^.{1,#{max}}$/)
+      assert_subject_length(commit, Keyword.get(opts, :max_subject_length, 72))
     end)
   end
 

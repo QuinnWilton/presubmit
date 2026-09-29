@@ -36,6 +36,7 @@ defmodule Presubmit.Assertions do
   ## Message
 
   - `assert_subject/2`, `refute_subject/2`, `assert_message/2`
+  - `assert_subject_length/2` — at most `max` characters
   - `assert_trailer/2`, `assert_trailer/3`, `refute_trailer/2`
   - `assert_scope_matches_paths/3` — the subject's scope agrees with the paths touched
 
@@ -534,6 +535,28 @@ defmodule Presubmit.Assertions do
     if Regex.match?(regex, subject),
       do: :ok,
       else: flunk("Expected the subject to match #{inspect(regex)}, but it is:\n\n  #{subject}")
+  end
+
+  @doc """
+  Asserts the subject line is non-empty and at most `max` characters long.
+  Characters are graphemes, so `—` or `é` count once, not once per byte.
+  """
+  @spec assert_subject_length(Commit.t(), pos_integer()) :: :ok
+  def assert_subject_length(%Commit{} = commit, max) when is_integer(max) and max > 0 do
+    subject = Query.subject(commit)
+
+    case String.length(subject) do
+      0 ->
+        flunk("The subject is empty.")
+
+      length when length <= max ->
+        :ok
+
+      length ->
+        flunk(
+          "The subject is #{length} characters, #{length - max} over the limit of #{max}:\n\n  #{subject}"
+        )
+    end
   end
 
   @doc "Asserts the subject line does not match `regex`."

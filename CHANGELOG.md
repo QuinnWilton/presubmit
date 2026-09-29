@@ -4,6 +4,7 @@
 
 ### Added
 
+- `Assertions.assert_subject_length/2`: the subject is non-empty and at most `max` characters.
 - `mix presubmit` writes its verdict, `pass` or `fail`, to the file named by `PRESUBMIT_VERDICT` once the rules have run. Nothing is written when presubmit stops first (a usage or configuration error, a crash, or Mix failing to load the project), so a caller can tell a failed rule from a presubmit that never ran.
 
 ### Changed
@@ -13,6 +14,7 @@
 
 ### Fixed
 
+- `Rules.Message` `:subject_length` counts characters, not bytes, so an em dash or an accented letter no longer pushes a fitting subject over the limit; the failure says how long the subject is and by how much it is over, instead of quoting a regex.
 - `--color` colours the report when the output is not a terminal, as documented; it used to defer to `IO.ANSI.enabled?/0` and print plain text into a pipe.
 - The `commit-msg` hook passes the empty tree as `--base` when amending a root commit under macOS's `/bin/sh` (bash 3.2), which read the empty-tree `case` inside `$(...)` as ending at the first pattern and passed a fragment of the script instead.
 - `Rules.Hygiene` `:no_merge_markers` also refuses the `|||||||` base marker of a diff3 or zdiff3 conflict, the line most often left behind when a conflict is resolved by deleting the others.

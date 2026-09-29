@@ -160,13 +160,32 @@ defmodule Presubmit.Scenarios.MessageTest do
     end
 
     test ":subject_length defaults to 72 columns and is configurable", %{repo: repo} do
-      assert_fail run_rule(Rules.Message, :subject_length, scenario(repo, :long_subject)), _
+      commit = scenario(repo, :long_subject)
+      length = String.length(subject(commit))
+      assert_fail run_rule(Rules.Message, :subject_length, commit), message
+
+      assert message =~
+               "The subject is #{length} characters, #{length - 72} over the limit of 72:"
 
       assert_pass run_rule(Rules.Message, :subject_length, scenario(repo, :long_subject),
                     max_subject_length: 120
                   )
 
       assert_pass run_rule(Rules.Message, :subject_length, scenario(repo, :scoped_correctly))
+    end
+
+    test ":subject_length counts characters, not bytes" do
+      fits = "[docs] " <> String.duplicate("é", 60) <> " — ok"
+      assert String.length(fits) == 72 and byte_size(fits) > 72
+      over = fits <> "!"
+
+      commit = fn subject ->
+        Presubmit.Commit.new(before: %{}, after: %{"a" => "1\n"}, message: subject)
+      end
+
+      assert_pass run_rule(Rules.Message, :subject_length, commit.(fits))
+      assert_fail run_rule(Rules.Message, :subject_length, commit.(over)), message
+      assert message =~ "73 characters, 1 over the limit of 72"
     end
 
     test ":subject checks a configured pattern", %{repo: repo} do
