@@ -29,7 +29,19 @@ defmodule Presubmit.CLI do
 
   @type result :: {exit_status :: 0 | 1 | 2, output :: iodata()}
 
-  @doc "Runs the command line and returns `{exit_status, output}`."
+  @doc """
+  Runs the command line and returns `{exit_status, output}`.
+
+  Once the rules have run, the verdict (`pass` or `fail`, agreeing with the
+  exit status) is written to the file named by the `PRESUBMIT_VERDICT`
+  environment variable, when it is set. The installed hooks read it to tell a
+  commit that failed a rule, which they block, from a presubmit that never got
+  to run, which they let through with a warning: a usage or configuration
+  error, a crash, or Mix failing to load the project all leave no verdict.
+
+  `env` overrides the environment for tests: `ci:` (a boolean, else the `CI`
+  variable) and `verdict:` (a path or `nil`, else `PRESUBMIT_VERDICT`).
+  """
   @spec main([String.t()], keyword()) :: result()
   def main(argv, env \\ []) do
     {opts, rest, invalid} = OptionParser.parse(argv, strict: @switches)
@@ -84,6 +96,7 @@ defmodule Presubmit.CLI do
       end
 
     status = exit_status(reports, on_error(opts), Keyword.get(opts, :warnings_as_errors, false))
+    write_verdict(env, status)
 
     output =
       case format do
@@ -109,6 +122,25 @@ defmodule Presubmit.CLI do
       :error in statuses and on_error == :fail -> 1
       warnings_as_errors? and Enum.any?(reports, &Report.warnings?/1) -> 1
       true -> 0
+    end
+  end
+
+  # Written only here, after every rule has run, so that its absence means presubmit did not run.
+  defp write_verdict(env, status) do
+    case Keyword.get_lazy(env, :verdict, fn -> System.get_env("PRESUBMIT_VERDICT") end) do
+      path when path in [nil, ""] ->
+        :ok
+
+      path ->
+        case File.write(path, if(status == 0, do: "pass\n", else: "fail\n")) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            raise Config.Error,
+              message:
+                "cannot write the verdict to #{path} (PRESUBMIT_VERDICT): #{:file.format_error(reason)}"
+        end
     end
   end
 
@@ -308,6 +340,10 @@ defmodule Presubmit.CLI do
         --timeout SECS    stop a rule that runs longer than this (default 30) and report it as an error
         --warnings-as-errors  exit 1 when any rule warned
         --list            print the configured rule sets and rules
+
+      Environment:
+        PRESUBMIT_VERDICT=P  once the rules have run, write pass or fail to file P (the hooks
+                             use it to tell a failed rule from a presubmit that could not run)
       """
   end
 end

@@ -5,8 +5,8 @@ defmodule Presubmit.CLITest do
 
   setup_all do: %{repo: Fixtures.repo("phoenix")}
 
-  defp run(args, env \\ [ci: false]) do
-    {status, output} = CLI.main(args, env)
+  defp run(args, env \\ []) do
+    {status, output} = CLI.main(args, Keyword.merge([ci: false, verdict: nil], env))
     {status, IO.iodata_to_binary(output)}
   end
 
@@ -296,6 +296,49 @@ defmodule Presubmit.CLITest do
 
     {1, out} = run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--no-color"])
     refute out =~ "\e["
+  end
+
+  test "the verdict is written once the rules have run, and never when they did not", %{
+    repo: repo
+  } do
+    verdict =
+      Path.join(System.tmp_dir!(), "presubmit_verdict_#{System.unique_integer([:positive])}")
+
+    on_exit(fn -> File.rm(verdict) end)
+
+    {1, _} =
+      run(["--repo", repo, "--rev", "scenario/unrouted_controller", "--no-color"],
+        verdict: verdict
+      )
+
+    assert File.read!(verdict) == "fail\n"
+
+    passing = write_config(repo, "[{Presubmit.Rules.Ecto, []}]")
+
+    {0, _} =
+      run(
+        ["--repo", repo, "--rev", "scenario/migration_newest", "--no-color", "--config", passing],
+        verdict: verdict
+      )
+
+    assert File.read!(verdict) == "pass\n"
+
+    # Errors before or instead of a run leave no verdict: the hooks read that as "could not run".
+    for args <- [
+          ["--bogus"],
+          ["--repo", repo, "--config", "missing.exs"],
+          ["--repo", repo, "--rev", "nope"],
+          ["--repo", repo, "--list"]
+        ] do
+      File.rm(verdict)
+      {_, _} = run(args, verdict: verdict)
+      refute File.exists?(verdict), "#{inspect(args)} wrote a verdict"
+    end
+
+    unwritable = Path.join([verdict <> "_missing_dir", "verdict"])
+
+    assert {2, "error: cannot write the verdict to " <> _} =
+             run(["--repo", repo, "--head", "--no-color"], verdict: unwritable)
   end
 
   test "usage and configuration errors exit 2", %{repo: repo} do

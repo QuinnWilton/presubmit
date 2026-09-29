@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- `mix presubmit` writes its verdict, `pass` or `fail`, to the file named by `PRESUBMIT_VERDICT` once the rules have run. Nothing is written when presubmit stops first (a usage or configuration error, a crash, or Mix failing to load the project), so a caller can tell a failed rule from a presubmit that never ran.
+
 ### Fixed
 
 - `--color` colours the report when the output is not a terminal, as documented; it used to defer to `IO.ANSI.enabled?/0` and print plain text into a pipe.
