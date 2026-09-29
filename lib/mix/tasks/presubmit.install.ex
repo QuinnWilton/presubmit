@@ -18,9 +18,13 @@ defmodule Mix.Tasks.Presubmit.Install do
   clone runs this once. A hook that was not installed by this task is never
   overwritten, and installation is refused when `core.hooksPath` is set.
 
-  The hooks skip, with a note, while a merge is in progress, when amending a
-  merge commit, and when `mix` is not on `PATH`; `git commit --no-verify`
-  bypasses them entirely. Keep `mix presubmit` in CI as the backstop.
+  The hooks refuse a commit only when presubmit ran and a rule failed. When
+  presubmit cannot run (Mix stops on stale or unresolvable dependencies, the
+  configuration does not load), they print `presubmit could not run: <the
+  error>; commit allowed, CI still checks` and let the commit through. They
+  also skip, with a note, while a merge is in progress, when amending a merge
+  commit, and when `mix` is not on `PATH`; `git commit --no-verify` bypasses
+  them entirely. Keep `mix presubmit` in CI as the backstop.
   """
 
   use Mix.Task

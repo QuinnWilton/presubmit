@@ -18,12 +18,23 @@ defmodule Presubmit.Hooks do
   detected and the delta since `HEAD` is what gets checked; amend with the
   editor or `--no-edit`, or run `mix presubmit --staged --base HEAD^`.
 
-  The hooks step aside, with a note, when they cannot do a sensible job:
-  while a merge is in progress or when amending a merge commit (the change
-  set would be someone else's branch), and when `mix` is not on `PATH` (GUI
-  clients often lack the developer's shell environment). A rule that crashes
-  is reported but does not block the commit (`--on-error warn`). CI remains
-  the backstop for all of these.
+  A hook blocks the commit only on presubmit's verdict. It points
+  `PRESUBMIT_VERDICT` at a file under the git directory, and `mix presubmit`
+  writes `pass` or `fail` there once its rules have run (`Presubmit.CLI`). When
+  there is no verdict, presubmit did not run: Mix stopped first (stale or
+  unresolvable dependencies, a project that does not load), or presubmit hit a
+  configuration error or crashed. That is a fault in the checkout or the tool,
+  not in the commit, so the hook prints `presubmit could not run: <the error>;
+  commit allowed, CI still checks` and lets the commit through. Presubmit 0.1.0
+  writes no verdict; its report (a line starting `Examining `) shows that it
+  ran, and then its exit status is the verdict.
+
+  The hooks also step aside, with a note, while a merge is in progress or
+  when amending a merge commit (the change set would be someone else's
+  branch), and when `mix` is not on `PATH` (GUI clients often lack the
+  developer's shell environment). A rule that crashes is reported but does not
+  block the commit (`--on-error warn`). CI remains the backstop for all of
+  these.
 
   Hooks are installed for the project in the current directory; in a
   subdirectory project of a larger repository the scripts `cd` there first.
@@ -88,9 +99,9 @@ defmodule Presubmit.Hooks do
       empty) base="$(#{empty_tree_sh()})" ;;
     esac
     if [ -n "$base" ]; then
-      exec mix presubmit --staged --base "$base" --message-file "$1" --repo "$root" --on-error warn
+      presubmit --staged --base "$base" --message-file "$1"
     fi
-    exec mix presubmit --staged --message-file "$1" --repo "$root" --on-error warn
+    presubmit --staged --message-file "$1"
     """
   end
 
@@ -100,14 +111,23 @@ defmodule Presubmit.Hooks do
     #{@marker}
     # Checks the staged changes before the message is written.
     #{preamble(project_rel)}
-    exec mix presubmit --staged --repo "$root" --on-error warn
+    presubmit --staged
     """
   end
 
-  # Shared by the hooks that run mix: locate the project, and step aside when a merge is in
-  # progress or mix is unavailable.
+  # Shared by the hooks that run mix: locate the project, step aside when a merge is in progress
+  # or mix is unavailable, and define `presubmit`, which runs `mix presubmit` with the given
+  # arguments and exits with its verdict.
+  #
+  # The output is teed so that the first error line can be quoted when there is no verdict;
+  # `--color` keeps the report coloured through the pipe when the hook writes to a terminal.
+  # Presubmit 0.1.0 writes no verdict, so a report ("Examining ...") stands in for one there.
   defp preamble(project_rel) do
-    cd = if project_rel == ".", do: "", else: ~s(cd "$root/#{project_rel}" || exit 1\n)
+    cd =
+      if project_rel == ".",
+        do: "",
+        else:
+          ~s|cd "$root/#{project_rel}" 2>/dev/null \|\| { echo "presubmit could not run: no project at #{project_rel}; commit allowed, CI still checks"; exit 0; }\n|
 
     """
     root="$(git rev-parse --show-toplevel)"
@@ -118,7 +138,31 @@ defmodule Presubmit.Hooks do
     if ! command -v mix >/dev/null 2>&1; then
       echo "presubmit: mix is not on PATH; skipping (CI checks the result)"
       exit 0
-    fi\
+    fi
+    # Blocks the commit only on presubmit's verdict; without one, presubmit did not run.
+    presubmit() {
+      run="$(git rev-parse --git-path presubmit_run)"
+      rm -rf "$run"
+      if ! mkdir -p "$run"; then
+        echo "presubmit could not run: cannot create $run; commit allowed, CI still checks"
+        exit 0
+      fi
+      trap 'rm -rf "$run"' EXIT
+      color=""
+      if [ -t 1 ]; then color="--color"; fi
+      { PRESUBMIT_VERDICT="$run/verdict" mix presubmit "$@" --repo "$root" --on-error warn $color; echo "$?" > "$run/status"; } 2>&1 | tee "$run/log"
+      case "$(cat "$run/verdict" 2>/dev/null)" in
+        pass) exit 0 ;;
+        fail) exit 1 ;;
+      esac
+      status="$(cat "$run/status" 2>/dev/null)"
+      if [ "$status" = 0 ]; then exit 0; fi
+      if grep -q '^Examining ' "$run/log"; then exit 1; fi
+      reason="$(grep -E '^(\\*\\* |error: )' "$run/log" | head -n 1)"
+      if [ -z "$reason" ]; then reason="$(grep -v '^[[:space:]]*$' "$run/log" | tail -n 1)"; fi
+      echo "presubmit could not run: ${reason:-mix exited with status ${status:-unknown}}; commit allowed, CI still checks"
+      exit 0
+    }\
     """
   end
 

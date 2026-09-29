@@ -17,7 +17,10 @@ defmodule Mix.Tasks.Presubmit do
 
   Exit status is 0 when every rule passed (or was skipped), 1 when any
   failed, and 2 on a usage or configuration error. The first line of output
-  always names the source examined.
+  always names the source examined. With `PRESUBMIT_VERDICT=path` set, the
+  verdict (`pass` or `fail`) is also written to `path` once the rules have
+  run, which is how the hooks tell a failed rule from Mix failing to load the
+  project before presubmit ran.
 
   Without a `.presubmit.exs`, the defaults enable `Rules.Phoenix` and
   `Rules.Ecto` when those libraries are loaded or declared in `mix.exs`, and

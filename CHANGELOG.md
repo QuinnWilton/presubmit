@@ -6,6 +6,11 @@
 
 - `mix presubmit` writes its verdict, `pass` or `fail`, to the file named by `PRESUBMIT_VERDICT` once the rules have run. Nothing is written when presubmit stops first (a usage or configuration error, a crash, or Mix failing to load the project), so a caller can tell a failed rule from a presubmit that never ran.
 
+### Changed
+
+- The hooks block a commit only when presubmit ran and a rule failed. When presubmit cannot run (Mix stops on stale or unresolvable dependencies, the configuration does not load, presubmit crashes) they print `presubmit could not run: <first error line>; commit allowed, CI still checks` and let the commit through, where they used to refuse it. They read the verdict from `PRESUBMIT_VERDICT`; with presubmit 0.1.0, which writes none, its report stands in. Reinstall with `mix presubmit.install` to get the new scripts.
+- A subdirectory project's hooks let the commit through, with the same warning, when the project directory is gone.
+
 ### Fixed
 
 - `--color` colours the report when the output is not a terminal, as documented; it used to defer to `IO.ANSI.enabled?/0` and print plain text into a pipe.

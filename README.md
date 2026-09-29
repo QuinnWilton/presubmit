@@ -24,6 +24,10 @@ mix presubmit           # by hand: the working tree if dirty, else HEAD
 mix presubmit --list    # what is configured
 ```
 
+The hooks refuse a commit only when a rule fails. When presubmit cannot run
+at all (stale dependencies, a project Mix cannot load), they say so and let
+the commit through.
+
 Add `import_deps: [:presubmit]` to `.formatter.exs`. In CI, check every
 commit (`HEAD` on a pull request is a synthetic merge, so use the range):
 

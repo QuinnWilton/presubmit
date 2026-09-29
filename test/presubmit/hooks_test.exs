@@ -49,8 +49,11 @@ defmodule Presubmit.HooksTest do
       assert File.read!(path) =~ "# installed by mix presubmit.install"
     end
 
-    assert File.read!(Path.join(repo, ".git/hooks/commit-msg")) =~
-             ~s|exec mix presubmit --staged --base "$base" --message-file "$1" --repo "$root" --on-error warn|
+    commit_msg = File.read!(Path.join(repo, ".git/hooks/commit-msg"))
+    assert commit_msg =~ ~s|presubmit --staged --base "$base" --message-file "$1"\n|
+
+    assert commit_msg =~
+             ~s|PRESUBMIT_VERDICT="$run/verdict" mix presubmit "$@" --repo "$root" --on-error warn $color|
 
     assert Hooks.installed(repo) == ["commit-msg", "prepare-commit-msg"]
     assert {:ok, ^paths} = Hooks.install(repo)
@@ -60,22 +63,22 @@ defmodule Presubmit.HooksTest do
     for hook <- ["commit-msg", "pre-commit"] do
       script = Hooks.script(hook, "apps/web")
       assert script =~ ~s|root="$(git rev-parse --show-toplevel)"|
-      assert script =~ ~s|cd "$root/apps/web" \|\| exit 1|
+      assert script =~ ~s|cd "$root/apps/web" 2>/dev/null \|\||
       assert script =~ "MERGE_HEAD"
       assert script =~ "command -v mix"
       assert script =~ "--on-error warn"
+      assert script =~ "PRESUBMIT_VERDICT"
     end
 
     refute Hooks.script("commit-msg", ".") =~ "cd "
-    refute Hooks.script("prepare-commit-msg", "apps/web") =~ "exec mix"
+    refute Hooks.script("prepare-commit-msg", "apps/web") =~ "PRESUBMIT_VERDICT"
   end
 
   test "installs a pre-commit hook on request", %{repo: repo} do
     assert {:ok, paths} = Hooks.install(repo, Hooks.default() ++ ["pre-commit"])
     assert "pre-commit" in Enum.map(paths, &Path.basename/1)
 
-    assert File.read!(Path.join(repo, ".git/hooks/pre-commit")) =~
-             ~s|exec mix presubmit --staged --repo "$root" --on-error warn|
+    assert File.read!(Path.join(repo, ".git/hooks/pre-commit")) =~ ~r/^presubmit --staged$/m
   end
 
   test "a subdirectory project gets hooks that cd into it", %{repo: repo} do
@@ -83,7 +86,7 @@ defmodule Presubmit.HooksTest do
     File.mkdir_p!(project)
     assert {:ok, [_, commit_msg]} = Hooks.install(project)
     assert String.ends_with?(commit_msg, "/repo/.git/hooks/commit-msg")
-    assert File.read!(commit_msg) =~ ~s|cd "$root/apps/web" \|\| exit 1|
+    assert File.read!(commit_msg) =~ ~s|cd "$root/apps/web" 2>/dev/null \|\||
     refute File.read!(Path.join(repo, ".git/hooks/prepare-commit-msg")) =~ "cd "
     assert Hooks.installed(project) == ["commit-msg", "prepare-commit-msg"]
   end
@@ -223,21 +226,29 @@ defmodule Presubmit.HooksTest do
       assert out =~ "mix is not on PATH; skipping"
     end
 
-    test "commit-msg reaches mix with --base after an amend", %{
-      repo: repo,
-      head: head,
-      parent: parent
-    } do
-      # There is no mix.exs here, so mix fails; what matters is the command line it was given.
+    test "commit-msg lets the commit through, quoting the error, when mix cannot run presubmit",
+         %{repo: repo, head: head} do
+      # There is no mix.exs here, so the real mix stops before presubmit exists: no verdict.
       assert {0, _} = hook(repo, "prepare-commit-msg", ["msg", "commit", head])
       {status, out} = hook(repo, "commit-msg", ["msg"], mix?: true)
-      assert status != 0
+      assert status == 0
 
-      assert out =~ "could not find a Mix.Project" or out =~ "no mix.exs" or
-               out =~ "presubmit"
+      assert out =~
+               ~r/^presubmit could not run: \*\* \(Mix\) .+; commit allowed, CI still checks$/m
 
       assert flag(repo) == :none
-      _ = parent
+      refute File.exists?(Path.join(repo, ".git/presubmit_run"))
+    end
+
+    test "a subdirectory project that is gone lets the commit through", %{repo: repo} do
+      File.mkdir_p!(Path.join(repo, "apps/web"))
+      {:ok, _} = Hooks.install(Path.join(repo, "apps/web"))
+      File.rm_rf!(Path.join(repo, "apps"))
+
+      assert {0, out} = hook(repo, "commit-msg", ["msg"], mix?: true)
+
+      assert out =~
+               "presubmit could not run: no project at apps/web; commit allowed, CI still checks"
     end
   end
 end
