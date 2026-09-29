@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- `Rules.Mix` `:lock_in_sync` names the right command for each half: `mix deps.get` locks an added dependency, and `mix deps.unlock --unused` drops a removed one's entry, which `deps.get` never does. It used to suggest `mix deps.get` for both.
 - `Rules.Message` `:subject_length` counts characters, not bytes, so an em dash or an accented letter no longer pushes a fitting subject over the limit; the failure says how long the subject is and by how much it is over, instead of quoting a regex.
 - `--color` colours the report when the output is not a terminal, as documented; it used to defer to `IO.ANSI.enabled?/0` and print plain text into a pipe.
 - The `commit-msg` hook passes the empty tree as `--base` when amending a root commit under macOS's `/bin/sh` (bash 3.2), which read the empty-tree `case` inside `$(...)` as ending at the first pattern and passed a fragment of the script instead.

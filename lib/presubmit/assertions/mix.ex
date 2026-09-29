@@ -50,6 +50,13 @@ defmodule Presubmit.Assertions.Mix do
           MapSet.member?(locked, dep.name),
           do: "#{inspect(dep.name)} was removed from mix.exs but is still in mix.lock"
 
+    # `mix deps.get` adds entries but never removes one, so each half names its own command.
+    remedies =
+      if(missing == [], do: [], else: ["Run `mix deps.get` to lock the added dependencies."]) ++
+        if stale == [],
+          do: [],
+          else: ["Run `mix deps.unlock --unused` to drop the removed ones."]
+
     case missing ++ stale do
       [] ->
         :ok
@@ -57,7 +64,7 @@ defmodule Presubmit.Assertions.Mix do
       problems ->
         Flunk.flunk(
           ["mix.lock is out of sync with mix.exs:" | Flunk.indent(problems)] ++
-            ["", "Run `mix deps.get` and commit the lockfile with the dependency change."]
+            [""] ++ remedies ++ ["Commit the lockfile with the dependency change."]
         )
     end
   end

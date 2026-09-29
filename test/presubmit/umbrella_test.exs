@@ -92,4 +92,30 @@ defmodule Presubmit.UmbrellaTest do
 
     assert_lock_in_sync(synced)
   end
+
+  test "lock_in_sync names the command for each half: deps.get adds, deps.unlock --unused drops" do
+    mix_exs = fn deps -> "defmodule P do\n  defp deps, do: #{deps}\nend\n" end
+    lock = ~s(%{"jason": {:hex, :jason, "1.4.4", "a", [:mix], [], "hexpm", "b"}}\n)
+    before = %{"mix.exs" => mix_exs.(~s([{:jason, "~> 1.4"}])), "mix.lock" => lock}
+
+    # A rename: the new name is unlocked and the old one lingers.
+    renamed =
+      Commit.new(
+        before: before,
+        after: %{"mix.exs" => mix_exs.(~s([{:json5, "~> 0.1"}])), "mix.lock" => lock}
+      )
+
+    error = assert_raise Presubmit.Violation, fn -> assert_lock_in_sync(renamed) end
+    assert error.message =~ ":json5 was added to mix.exs but is not in mix.lock"
+    assert error.message =~ ":jason was removed from mix.exs but is still in mix.lock"
+    assert error.message =~ "Run `mix deps.get` to lock the added dependencies."
+    assert error.message =~ "Run `mix deps.unlock --unused` to drop the removed ones."
+
+    dropped =
+      Commit.new(before: before, after: %{"mix.exs" => mix_exs.("[]"), "mix.lock" => lock})
+
+    error = assert_raise Presubmit.Violation, fn -> assert_lock_in_sync(dropped) end
+    assert error.message =~ "mix deps.unlock --unused"
+    refute error.message =~ "mix deps.get"
+  end
 end

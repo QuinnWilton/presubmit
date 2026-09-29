@@ -144,7 +144,7 @@ defmodule Presubmit.Scenarios.LibraryTest do
       [%{name: name}] = MixAssertions.deps_added(commit)
       assert_fail(run_rule(Rules.Mix, :lock_in_sync, commit), message)
       assert message =~ "#{inspect(name)} was added to mix.exs but is not in mix.lock"
-      assert message =~ "Run `mix deps.get`"
+      assert message =~ "Run `mix deps.get` to lock the added dependencies."
     end
 
     test "is vacuous when deps are unchanged", %{repo: repo} do
