@@ -37,6 +37,7 @@ defmodule Presubmit.Assertions do
 
   - `assert_subject/2`, `refute_subject/2`, `assert_message/2`
   - `assert_subject_length/2` — at most `max` characters
+  - `assert_body_line_length/2` — every wrappable body line at most `max` characters
   - `assert_trailer/2`, `assert_trailer/3`, `refute_trailer/2`
   - `assert_scope_matches_paths/3` — the subject's scope agrees with the paths touched
 
@@ -47,7 +48,7 @@ defmodule Presubmit.Assertions do
 
   import Presubmit.Assertions.Flunk, only: [flunk: 1, indent: 1]
 
-  alias Presubmit.{Commit, FileChange, Paths, Pattern, Query, Tree}
+  alias Presubmit.{Commit, FileChange, Message, Paths, Pattern, Query, Tree}
   alias Presubmit.Source.Facts
   alias Presubmit.Source.Facts.Function
 
@@ -558,6 +559,101 @@ defmodule Presubmit.Assertions do
         )
     end
   end
+
+  @doc """
+  Asserts every body line that wrapping could shorten is at most `max`
+  characters long.
+
+  Characters are graphemes, as in `assert_subject_length/2`: a grapheme is
+  what a terminal or editor draws in one column, so `é` written as `e` plus
+  a combining accent counts once, as it displays. Trailing whitespace is
+  not counted; git's default cleanup strips it.
+
+  The body is what `Presubmit.Message.parse/1` puts between the subject and
+  the trailer block, so trailers (`Co-Authored-By: …`, a long session URL)
+  are never measured. Within the body a line is exempt when wrapping it
+  could not shorten it:
+
+  - it starts with whitespace: an indented code block, command output, or
+    a hanging indent the author laid out by hand;
+  - it starts with `>`: quoted text, kept as the quoted source wrote it;
+  - it is shaped like a trailer, `Key: value` with a one-word value: a
+    `Link:` or session URL left outside the trailer block is data, and
+    wrapping it would break it;
+  - its last word is longer than `max` on its own and the text before that
+    word fits: a long URL or path after a lead-in such as `See`. Wrapping
+    would leave the word over the limit on its own line anyway.
+
+  A line over the limit by a word or two of prose is not exempt: wrapping
+  moves those words to the next line. Nor is a long paragraph that
+  contains a URL: the prose around it wraps.
+
+  Each failure names the line by its number in the message, with its
+  length and the start of its text.
+  """
+  @spec assert_body_line_length(Commit.t(), pos_integer()) :: :ok
+  def assert_body_line_length(%Commit{} = commit, max) when is_integer(max) and max > 0 do
+    long =
+      for {number, line} <- Message.body_lines(Query.message!(commit)),
+          line = String.trim_trailing(line),
+          length = String.length(line),
+          length > max and wrappable?(line, max),
+          do: {number, line, length}
+
+    case long do
+      [] ->
+        :ok
+
+      lines ->
+        flunk([
+          "#{count(lines, "body line is", "body lines are")} longer than #{max} characters; wrap prose at #{max} columns:",
+          "",
+          indent(
+            Enum.map(lines, fn {number, line, length} ->
+              "line #{number}: #{length} characters, #{length - max} over: #{snippet(line)}"
+            end)
+          ),
+          "",
+          "Exempt: trailers, lines that start with whitespace or `>`, `Key: value` lines with a one-word value, and lines whose last word (a URL, a path) is longer than #{max} on its own."
+        ])
+    end
+  end
+
+  @trailer_shaped ~r/^[A-Za-z][A-Za-z0-9-]*:\s+\S+$/u
+
+  # A line is worth wrapping unless wrapping could not bring it within `max`: the text it would
+  # move to the next line is a single word longer than `max` (a URL, a path), or the line is data
+  # whose shape wrapping would break.
+  defp wrappable?(line, max) do
+    cond do
+      String.match?(line, ~r/^\s/u) -> false
+      String.starts_with?(line, ">") -> false
+      String.match?(line, @trailer_shaped) -> false
+      true -> not one_long_word?(line, max)
+    end
+  end
+
+  # The line is one word longer than `max`, after a lead-in (`See`, `Link:`) that fits.
+  defp one_long_word?(line, max) do
+    {lead_in, word} =
+      case Regex.run(~r/^(.*)\s(\S+)$/su, line, capture: :all_but_first) do
+        [lead_in, word] -> {String.trim_trailing(lead_in), word}
+        nil -> {"", line}
+      end
+
+    String.length(word) > max and String.length(lead_in) <= max
+  end
+
+  @snippet_length 40
+
+  defp snippet(line) do
+    if String.length(line) > @snippet_length,
+      do: inspect(String.trim_trailing(String.slice(line, 0, @snippet_length)) <> "…"),
+      else: inspect(line)
+  end
+
+  defp count([_], one, _many), do: "1 #{one}"
+  defp count(items, _one, many), do: "#{length(items)} #{many}"
 
   @doc "Asserts the subject line does not match `regex`."
   @spec refute_subject(Commit.t(), Regex.t()) :: :ok

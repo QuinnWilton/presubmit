@@ -3,16 +3,22 @@ defmodule Presubmit.Rules.Message do
   Commit message conventions. All of these skip for change sets without a message.
 
   Subjects git writes itself — `Revert "…"` and `Merge …` — are exempt from
-  the shape rules (`subject`, `subject_length`, `scope`); override with
-  `exempt:` (a list of regexes, `[]` to exempt nothing). `no_fixup` applies
-  to committed revisions only: `fixup!`/`squash!` commits are meant to exist
-  locally and be autosquashed before they reach `main`.
+  the shape rules (`subject`, `subject_length`, `body_line_length`, `scope`);
+  override with `exempt:` (a list of regexes, `[]` to exempt nothing).
+  `no_fixup` applies to committed revisions only: `fixup!`/`squash!` commits
+  are meant to exist locally and be autosquashed before they reach `main`.
 
   Options:
 
   - `subject:` — regex the subject must match (rule `:subject`; skipped without it).
   - `max_subject_length:` — default 72 characters, counted as graphemes (rule
     `:subject_length`). Many policies make it a warning: `warn: [:subject_length]`.
+  - `max_body_line_length:` — default 72 characters, counted as graphemes (rule
+    `:body_line_length`). Trailers are not measured, nor are body lines that
+    wrapping could not bring within the limit: lines that start with
+    whitespace (code, output) or `>` (quotes), `Key: value` lines with a
+    one-word value, and lines whose last word (a URL, a path) is longer than
+    the limit on its own. See `Presubmit.Assertions.assert_body_line_length/2`.
   - `scope:` — `{regex_with_capture, (scope -> path_pattern)}`; the subject's
     scope must agree with the paths touched (rule `:scope`; skipped without it).
   - `trailers:` — list of `{trigger, key, value_regex | nil}`; when `trigger`
@@ -37,6 +43,12 @@ defmodule Presubmit.Rules.Message do
   rule :subject_length, "subject fits the configured length", fn commit, opts ->
     unless_exempt(commit, opts, fn ->
       assert_subject_length(commit, Keyword.get(opts, :max_subject_length, 72))
+    end)
+  end
+
+  rule :body_line_length, "body lines fit the configured length", fn commit, opts ->
+    unless_exempt(commit, opts, fn ->
+      assert_body_line_length(commit, Keyword.get(opts, :max_body_line_length, 72))
     end)
   end
 

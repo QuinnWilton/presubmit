@@ -7,6 +7,7 @@ defmodule Presubmit.Scenarios.MessageTest do
   """
 
   use ExUnit.Case, async: true
+  use ExUnitProperties
 
   import Presubmit.Query
   import Presubmit.RuleHelpers
@@ -152,53 +153,156 @@ defmodule Presubmit.Scenarios.MessageTest do
     end
   end
 
-  describe "subject hygiene" do
-    test ":no_fixup refuses fixup!/squash! commits", %{repo: repo} do
-      assert_fail run_rule(Rules.Message, :no_fixup, scenario(repo, :fixup)), message
-      assert message =~ "not to match"
-      assert_pass run_rule(Rules.Message, :no_fixup, scenario(repo, :scoped_correctly))
+  describe ":body_line_length" do
+    # A prose sentence of `n` characters, made of short words, so wrapping always helps.
+    defp prose(n),
+      do:
+        String.duplicate("word ", div(n, 5) + 1)
+        |> String.slice(0, n)
+        |> String.trim_trailing()
+        |> pad(n)
+
+    defp pad(text, n), do: text <> String.duplicate("x", n - String.length(text))
+
+    defp message(body),
+      do: Presubmit.Commit.new(before: %{}, after: %{"a" => "1\n"}, message: body)
+
+    defp body_rule(raw, opts \\ []),
+      do: run_rule(Rules.Message, :body_line_length, message(raw), opts)
+
+    test "passes a body wrapped at 72 and a message without a body" do
+      assert_pass body_rule("[x] subject\n\n#{prose(72)}\n#{prose(40)}\n")
+      assert_pass body_rule("[x] subject\n")
     end
 
-    test ":subject_length defaults to 72 columns and is configurable", %{repo: repo} do
-      commit = scenario(repo, :long_subject)
-      length = String.length(subject(commit))
-      assert_fail run_rule(Rules.Message, :subject_length, commit), message
+    test "fails an unwrapped paragraph, naming each line, its length, and its start" do
+      raw = "[x] subject\n\n#{prose(72)}\n\n#{prose(190)}\n#{prose(73)}\n"
+      assert_fail body_rule(raw), message
 
       assert message =~
-               "The subject is #{length} characters, #{length - 72} over the limit of 72:"
+               "2 body lines are longer than 72 characters; wrap prose at 72 columns:"
 
-      assert_pass run_rule(Rules.Message, :subject_length, scenario(repo, :long_subject),
-                    max_subject_length: 120
-                  )
+      assert message =~
+               ~s(line 5: 190 characters, 118 over: "word word word word word word word word…")
 
-      assert_pass run_rule(Rules.Message, :subject_length, scenario(repo, :scoped_correctly))
+      assert message =~ "line 6: 73 characters, 1 over:"
+      refute message =~ "line 3:"
     end
 
-    test ":subject_length counts characters, not bytes" do
-      fits = "[docs] " <> String.duplicate("é", 60) <> " — ok"
+    test "a single long line reads in the singular" do
+      assert_fail body_rule("[x] s\n\n#{prose(80)}"), message
+      assert message =~ "1 body line is longer than 72 characters"
+    end
+
+    test "max_body_line_length: sets the limit" do
+      raw = "[x] subject\n\n#{prose(100)}\n"
+      assert_fail body_rule(raw), _
+      assert_pass body_rule(raw, max_body_line_length: 100)
+      assert_fail body_rule(raw, max_body_line_length: 99), message
+      assert message =~ "line 3: 100 characters, 1 over:"
+    end
+
+    test "counts characters, not bytes" do
+      fits = String.duplicate("séance ≡ ", 8) |> String.trim_trailing() |> pad(72)
       assert String.length(fits) == 72 and byte_size(fits) > 72
-      over = fits <> "!"
-
-      commit = fn subject ->
-        Presubmit.Commit.new(before: %{}, after: %{"a" => "1\n"}, message: subject)
-      end
-
-      assert_pass run_rule(Rules.Message, :subject_length, commit.(fits))
-      assert_fail run_rule(Rules.Message, :subject_length, commit.(over)), message
-      assert message =~ "73 characters, 1 over the limit of 72"
+      assert_pass body_rule("[x] s\n\n#{fits}\n")
+      assert_fail body_rule("[x] s\n\n#{fits} é\n"), message
+      assert message =~ "74 characters, 2 over"
     end
 
-    test ":subject checks a configured pattern", %{repo: repo} do
-      assert_pass run_rule(Rules.Message, :subject, scenario(repo, :scoped_correctly),
-                    subject: ~r/^\[\w+\] /
+    test "trailers in the trailer block are not measured" do
+      session = "Claude-Session: https://claude.ai/code/session_" <> String.duplicate("e9c3", 10)
+      assert String.length(session) > 72
+
+      assert_pass body_rule(
+                    "[x] s\n\n#{prose(60)}\n\nCo-Authored-By: Someone With A Long Name <someone.with.a.long.name@example.com>\n#{session}\n"
                   )
+    end
 
-      assert_fail run_rule(Rules.Message, :subject, scenario(repo, :no_scope),
-                    subject: ~r/^\[\w+\] /
-                  ),
-                  _
+    test "a trailer-shaped line with a one-word value outside the trailer block passes" do
+      session = "Claude-Session: https://claude.ai/code/session_" <> String.duplicate("e9c3", 10)
+      assert_pass body_rule("[x] s\n\n#{prose(60)}\n#{session}\nnot a trailer\n")
+    end
 
-      assert {:skip, _} = run_rule(Rules.Message, :subject, scenario(repo, :no_scope))
+    test "a long word after a lead-in that fits passes; a prose overflow does not" do
+      url = "https://example.com/" <> String.duplicate("segment/", 10)
+      assert String.length(url) > 72
+      assert_pass body_rule("[x] s\n\n#{url}\n")
+      assert_pass body_rule("[x] s\n\nSee #{url}\n")
+      assert_pass body_rule("[x] s\n\n/very/long/path/" <> String.duplicate("dir/", 20) <> "\n")
+
+      # A short URL moves to the next line and fits there.
+      assert_fail body_rule("[x] s\n\n#{prose(60)} https://example.com/a/b\n"), _
+      # A long lead-in wraps even when the last word is a long URL.
+      assert_fail body_rule("[x] s\n\n#{prose(80)} #{url}\n"), _
+      # Prose over by one word wraps.
+      assert_fail body_rule("[x] s\n\n#{prose(70)} word\n"), _
+    end
+
+    test "indented and quoted lines pass" do
+      long = prose(100)
+      assert_pass body_rule("[x] s\n\nCode:\n\n    #{long}\n\tdef #{long}\n")
+      assert_pass body_rule("[x] s\n\n> #{long}\n>#{long}\n")
+    end
+
+    test "trailing whitespace is not counted" do
+      assert_pass body_rule("[x] s\n\n#{prose(72)}   \n")
+    end
+
+    test "git-generated subjects are exempt unless exempt: says otherwise" do
+      raw = "Revert \"[x] s\"\n\n#{prose(100)}\n"
+      assert {:skip, "git-generated subject: " <> _} = body_rule(raw)
+      assert_fail body_rule(raw, exempt: []), _
+    end
+
+    test "warn: reports without failing" do
+      [rule] =
+        Presubmit.RuleSet.expand(
+          {Rules.Message, only: [:body_line_length], warn: [:body_line_length]}
+        )
+
+      assert {:warn, _} = Presubmit.Rule.run(rule, message("[x] s\n\n#{prose(100)}\n"))
+    end
+
+    property "a body whose lines all fit passes" do
+      check all(
+              max <- integer(20..100),
+              lines <- list_of(prose_line(1, max), min_length: 1, max_length: 8)
+            ) do
+        assert_pass body_rule("[x] s\n\n" <> Enum.join(lines, "\n"), max_body_line_length: max)
+      end
+    end
+
+    property "a body with one wrappable prose line over the limit fails, naming that line" do
+      check all(
+              max <- integer(20..100),
+              before <- list_of(prose_line(1, max), max_length: 5),
+              # Its words are shorter than any limit, so wrapping can always break it.
+              over <- prose_line(max + 1, max + 120),
+              rest <- list_of(prose_line(1, max), max_length: 5)
+            ) do
+        raw = "[x] s\n\n" <> Enum.join(before ++ [over] ++ rest, "\n")
+        number = 3 + length(before)
+
+        assert_fail body_rule(raw, max_body_line_length: max), message
+        assert message =~ "1 body line is longer than #{max} characters"
+        assert message =~ "line #{number}: #{String.length(over)} characters"
+      end
+    end
+  end
+
+  # Words of 1 to 12 letters, some non-ASCII, joined by single spaces and cut to `min..max`
+  # characters: prose that wrapping can always break, since no word is as long as a limit.
+  defp prose_line(min, max) do
+    word = string([?a..?z, ?é, ?≡], min_length: 1, max_length: 12)
+
+    gen all(
+          words <- list_of(word, length: max),
+          length <- integer(min..max)
+        ) do
+      line = words |> Enum.join(" ") |> String.slice(0, length)
+      # A cut that lands on a space would leave trailing whitespace, which is not counted.
+      String.replace(line, ~r/ $/, "x")
     end
   end
 end

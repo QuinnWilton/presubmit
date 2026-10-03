@@ -74,7 +74,7 @@ Each set documents its rules and options:
 - [`Presubmit.Rules.ExUnit`](https://hexdocs.pm/presubmit/Presubmit.Rules.ExUnit.html): tests move with code
 - [`Presubmit.Rules.Mix`](https://hexdocs.pm/presubmit/Presubmit.Rules.Mix.html): `mix.lock` in sync
 - [`Presubmit.Rules.Changelog`](https://hexdocs.pm/presubmit/Presubmit.Rules.Changelog.html): API changes and releases logged
-- [`Presubmit.Rules.Message`](https://hexdocs.pm/presubmit/Presubmit.Rules.Message.html): subject shape, scope, trailers
+- [`Presubmit.Rules.Message`](https://hexdocs.pm/presubmit/Presubmit.Rules.Message.html): subject shape and length, body wrapping, scope, trailers
 - [`Presubmit.Rules.Hygiene`](https://hexdocs.pm/presubmit/Presubmit.Rules.Hygiene.html): no debug calls, conflict markers, or artifacts
 - [`Presubmit.Rules.Shape`](https://hexdocs.pm/presubmit/Presubmit.Rules.Shape.html): size ceilings
 

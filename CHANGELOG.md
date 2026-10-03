@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `Rules.Message` `:body_line_length`: every body line that wrapping could bring within the limit is at most `max_body_line_length:` characters (default 72, counted as graphemes). Trailers are not measured, and neither are lines that start with whitespace or `>`, `Key: value` lines with a one-word value, or lines whose last word (a URL, a path) is longer than the limit on its own. The failure names each line by its number in the message, with its length, how far over it is, and the start of its text. The rule skips `Revert "…"` and `Merge …` subjects like the other shape rules.
+- `Assertions.assert_body_line_length/2` and `Message.body_lines/1`, the body's lines numbered as they appear in the message.
+
+### Changed
+
+- The default configuration (no `.presubmit.exs`) runs `Rules.Message` `:body_line_length` as well as `:no_fixup` and `:subject_length`, so a commit whose body has an unwrapped paragraph now fails. A policy that names `Rules.Message` without `only:` gets the rule too; `warn: [:body_line_length]` reports without failing, and `except: [:body_line_length]` turns it off.
+
 ## 0.1.1 - 2026-09-29
 
 ### Added

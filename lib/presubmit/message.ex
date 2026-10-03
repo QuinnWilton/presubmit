@@ -79,6 +79,44 @@ defmodule Presubmit.Message do
     for {k, v} <- trailers, String.downcase(k) == wanted, do: v
   end
 
+  @doc """
+  The body's lines, each with its 1-based line number in the message
+  (the subject's first line is line 1).
+
+  The lines are the ones `parse/1` puts in `:body`: the subject paragraph
+  and the trailer block are left out, and so are the blank lines between
+  paragraphs. Line numbers count the raw message as written, so a report
+  can point at the line an editor shows.
+  """
+  @spec body_lines(t()) :: [{pos_integer(), String.t()}]
+  def body_lines(%__MODULE__{raw: raw, trailers: trailers}) do
+    paragraphs =
+      raw
+      |> String.replace("\r\n", "\n")
+      |> String.split("\n")
+      |> Enum.with_index(1)
+      # `parse/1` trims the message first, so whitespace-only lines at either end separate nothing.
+      |> Enum.drop_while(&blank?/1)
+      |> Enum.reverse()
+      |> Enum.drop_while(&blank?/1)
+      |> Enum.reverse()
+      # `parse/1` splits paragraphs on runs of empty lines; a whitespace-only line inside a
+      # paragraph stays in it.
+      |> Enum.chunk_by(fn {line, _} -> line == "" end)
+      |> Enum.reject(&match?([{"", _} | _], &1))
+
+    body =
+      case paragraphs do
+        [] -> []
+        [_subject | rest] when trailers == [] -> rest
+        [_subject | rest] -> Enum.drop(rest, -1)
+      end
+
+    for paragraph <- body, {line, number} <- paragraph, do: {number, line}
+  end
+
+  defp blank?({line, _}), do: String.trim(line) == ""
+
   # The final paragraph is a trailer block only if every line parses as a trailer.
   defp split_trailers([]), do: {[], []}
 

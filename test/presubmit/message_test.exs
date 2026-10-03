@@ -52,6 +52,28 @@ defmodule Presubmit.MessageTest do
     end
   end
 
+  describe "body_lines/1" do
+    test "numbers the body's lines as they appear in the message" do
+      raw = "Subject\nwrapped\n\n\nOne.\nTwo.\n\nThree.\n\nSigned-off-by: A <a@x>\n"
+      assert Message.body_lines(Message.parse(raw)) == [{5, "One."}, {6, "Two."}, {8, "Three."}]
+    end
+
+    test "keeps a final paragraph that is not a trailer block" do
+      assert Message.body_lines(Message.parse("S\n\nKey: value\nnot a trailer")) ==
+               [{3, "Key: value"}, {4, "not a trailer"}]
+    end
+
+    test "counts leading blank lines and CRLF line endings" do
+      assert Message.body_lines(Message.parse("\n  \nS\r\n\r\nBody\r\n")) == [{5, "Body"}]
+    end
+
+    test "is empty without a body" do
+      assert Message.body_lines(Message.parse("S\n")) == []
+      assert Message.body_lines(Message.parse("S\n\nK: v\n")) == []
+      assert Message.body_lines(Message.parse("")) == []
+    end
+  end
+
   describe "clean/1" do
     test "drops comment lines and everything after a scissors line, then trims" do
       raw = """
@@ -77,6 +99,31 @@ defmodule Presubmit.MessageTest do
   end
 
   describe "properties" do
+    property "body lines are the parsed body's lines, numbered as in the raw message" do
+      line = string([?a..?z, ?\s, ?:, ?é], min_length: 1, max_length: 20)
+      paragraph = list_of(line, min_length: 1, max_length: 4) |> map(&Enum.join(&1, "\n"))
+      separator = string([?\n], min_length: 2, max_length: 3)
+
+      check all(
+              subject <- string(?a..?z, min_length: 1),
+              paragraphs <- list_of({separator, paragraph}, max_length: 4)
+            ) do
+        raw = subject <> Enum.map_join(paragraphs, fn {sep, text} -> sep <> text end)
+        message = Message.parse(raw)
+        lines = Message.body_lines(message)
+        raw_lines = String.split(raw, "\n")
+
+        for {number, text} <- lines, do: assert(Enum.at(raw_lines, number - 1) == text)
+
+        # `parse/1` trims the message, so the last line's trailing whitespace may differ.
+        assert Enum.map(lines, fn {_, text} -> String.trim(text) end) ==
+                 message.body
+                 |> String.split("\n")
+                 |> Enum.reject(&(&1 == ""))
+                 |> Enum.map(&String.trim/1)
+      end
+    end
+
     property "trailers round-trip through a rendered message" do
       key = string(?a..?z, min_length: 1) |> map(&String.capitalize/1)
       value = string(:alphanumeric, min_length: 1)

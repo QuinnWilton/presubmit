@@ -22,7 +22,8 @@ defmodule Presubmit.Config do
 
   Without a file, `default/1` enables the sets that apply to the project:
   always `Hygiene`, `Mix`, `OTP`, `Shape`, `Elixir`'s `moduledoc` and
-  `pure_move`, and the message basics (`no_fixup`, `subject_length`);
+  `pure_move`, and the message basics (`no_fixup`, `subject_length`,
+  `body_line_length`);
   `Phoenix` and `Ecto` when those libraries are loaded in the VM or present
   in the examined tree's `mix.exs`/`mix.lock`; `Changelog`'s `release_logged`
   when the tree has a `CHANGELOG.md`. Each set's `requires/0` states the
@@ -68,7 +69,7 @@ defmodule Presubmit.Config do
     {Rules.ExUnit, only: [:behaviour_changes_tested], warn: [:behaviour_changes_tested]},
     Rules.Mix,
     {Rules.Changelog, warn: [:api_changes_logged]},
-    {Rules.Message, only: [:no_fixup, :subject_length]},
+    {Rules.Message, only: [:no_fixup, :subject_length, :body_line_length]},
     Rules.Hygiene,
     Rules.Shape
   ]
