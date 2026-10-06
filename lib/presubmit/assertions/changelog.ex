@@ -9,6 +9,10 @@ defmodule Presubmit.Assertions.Changelog do
   @doc """
   Asserts that when the commit changes the public API, the changelog's
   unreleased section gains content.
+
+  The public API is what `Presubmit.Query.public_api_diff/1` reports: API
+  functions in the files the project ships. Test support and fixtures that
+  only `MIX_ENV=test` compiles are not part of it.
   """
   @spec assert_api_changes_logged(Commit.t(), String.t()) :: :ok
   def assert_api_changes_logged(%Commit{} = commit, path \\ "CHANGELOG.md") do

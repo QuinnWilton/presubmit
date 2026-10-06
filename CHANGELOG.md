@@ -6,6 +6,11 @@
 
 - `MixFile.elixirc_paths/2`: the paths a project compiles Elixir from in the `:prod` environment, the one it is compiled in as a dependency, read from `mix.exs` without evaluating it. It follows the usual `elixirc_paths(Mix.env())` helper, so for a project whose `mix.exs` has `defp elixirc_paths(:test), do: ["lib", "test/support"]` and `defp elixirc_paths(_), do: ["lib"]` it returns `["lib"]`. An umbrella root gets `[]`; a value it cannot read gets Mix's default, `["lib"]`.
 - `MixFile.shipped_source/1`: a path pattern for the `.ex` files every project in the tree ships, joined to each project's directory (`Paths.lib_source/0`, the `.ex` files under any `lib/`, when the tree has no `mix.exs`).
+- The Elixir-source queries (`Query.modules_added/2`, `modules_removed/2`, `module_facts_added/2`, `functions_added/2`, `functions_removed/2`, `function_changes/2`, `behaviour_changed?/2`) accept `:shipped` as their pattern: the files `MixFile.shipped_source/1` matches, read from the tree before the change for removals and from the tree after it for everything else.
+
+### Fixed
+
+- `Rules.Changelog` `:api_changes_logged` counted a public function in any changed `.ex` or `.exs` file as public API, test support and fixtures included. In a project whose `mix.exs` compiles `test/support` only under `MIX_ENV=test`, adding `def calls(module)` to `MyApp.Test.CallCount` in `test/support/call_count.ex` warned `MyApp.Test.CallCount.calls/1 added` until the changelog changed. The rule now counts only the files the project ships, the `.ex` files under its `:prod` `elixirc_paths`: an added function by the `mix.exs` after the change, a removed one by the `mix.exs` before it. `Query.public_api_diff/1` and `public_api_changed?/1` report the same. `Source.Diff.public_added/1` and its siblings still cover every changed file.
 
 ## 0.2.0 - 2026-10-03
 

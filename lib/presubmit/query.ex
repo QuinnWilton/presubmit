@@ -7,13 +7,22 @@ defmodule Presubmit.Query do
   Path-level queries work on any file; the Elixir-level ones read the
   structural diff (`Presubmit.Source.Diff`) and adapter models
   (`Presubmit.Source.models/2`).
+
+  The Elixir-level queries also accept `:shipped` as their pattern: the
+  files the project compiles when it is a dependency
+  (`Presubmit.MixFile.shipped_source/1`), read from the side of the change
+  each fact comes from. An added function counts when the after tree ships
+  its file, and a removed one when the before tree did.
   """
 
-  alias Presubmit.{Commit, FileChange, Hunk, Message, NoMessageError, Pattern, Tree}
+  alias Presubmit.{Commit, FileChange, Hunk, Message, MixFile, NoMessageError, Pattern, Tree}
   alias Presubmit.Source.Diff
   alias Presubmit.Source.Facts.{Function, Module}
 
   @type pattern :: Pattern.t()
+
+  @typedoc "A path pattern, or `:shipped` for the files the project ships (see the moduledoc)."
+  @type source_pattern :: Pattern.t() | :shipped
 
   ## Paths
 
@@ -139,13 +148,14 @@ defmodule Presubmit.Query do
   def elixir_diff(%Commit{} = commit), do: Presubmit.Source.diff(commit)
 
   @doc "Modules the commit defines in files matching `pattern` that did not exist before (renames excluded)."
-  @spec modules_added(Commit.t(), pattern()) :: [module()]
+  @spec modules_added(Commit.t(), source_pattern()) :: [module()]
   def modules_added(commit, pattern \\ nil),
     do: commit |> module_facts_added(pattern) |> Enum.map(& &1.name)
 
   @doc "Modules that existed before the commit and do not after (renames excluded)."
-  @spec modules_removed(Commit.t(), pattern()) :: [module()]
+  @spec modules_removed(Commit.t(), source_pattern()) :: [module()]
   def modules_removed(commit, pattern \\ nil) do
+    pattern = resolve(pattern, commit.before)
     for m <- elixir_diff(commit).modules.removed, Pattern.matches?(m.path, pattern), do: m.name
   end
 
@@ -156,41 +166,55 @@ defmodule Presubmit.Query do
   end
 
   @doc "Facts for every module the commit adds in files matching `pattern`."
-  @spec module_facts_added(Commit.t(), pattern()) :: [Module.t()]
+  @spec module_facts_added(Commit.t(), source_pattern()) :: [Module.t()]
   def module_facts_added(commit, pattern \\ nil) do
+    pattern = resolve(pattern, commit.after)
     Enum.filter(elixir_diff(commit).modules.added, &Pattern.matches?(&1.path, pattern))
   end
 
   @doc "Functions the commit adds in files matching `pattern`, public and private."
-  @spec functions_added(Commit.t(), pattern()) :: [Function.t()]
+  @spec functions_added(Commit.t(), source_pattern()) :: [Function.t()]
   def functions_added(commit, pattern \\ nil) do
+    pattern = resolve(pattern, commit.after)
     Enum.filter(elixir_diff(commit).functions.added, &Pattern.matches?(&1.path, pattern))
   end
 
   @doc "Functions the commit removes from files matching `pattern`, public and private."
-  @spec functions_removed(Commit.t(), pattern()) :: [Function.t()]
+  @spec functions_removed(Commit.t(), source_pattern()) :: [Function.t()]
   def functions_removed(commit, pattern \\ nil) do
+    pattern = resolve(pattern, commit.before)
     Enum.filter(elixir_diff(commit).functions.removed, &Pattern.matches?(&1.path, pattern))
   end
 
   @doc """
-  Public functions added and removed by the commit, as `{module, name, arity}`.
+  API functions (public, not `@doc false`) the commit adds to and removes
+  from the code the project ships, as `{module, name, arity}`.
 
-  A function whose arity set changes shows up as removed at the old arity
-  and added at the new one.
+  Only files matching `:shipped` count (see the moduledoc), so test support
+  and fixtures compiled only under `MIX_ENV=test` are not public API. A
+  function whose arity set changes shows up as removed at the old arity and
+  added at the new one.
   """
   @spec public_api_diff(Commit.t()) :: %{
           added: [{module(), atom(), arity()}],
           removed: [{module(), atom(), arity()}]
         }
   def public_api_diff(commit) do
-    diff = elixir_diff(commit)
-    %{added: Diff.public_added(diff), removed: Diff.public_removed(diff)}
+    %{
+      added: commit |> functions_added(:shipped) |> api_keys(),
+      removed: commit |> functions_removed(:shipped) |> api_keys()
+    }
   end
 
-  @doc "Whether any public function was added or removed."
+  @doc "Whether the commit adds or removes any API function the project ships."
   @spec public_api_changed?(Commit.t()) :: boolean()
-  def public_api_changed?(commit), do: commit |> elixir_diff() |> Diff.public_api_changed?()
+  def public_api_changed?(commit), do: public_api_diff(commit) != %{added: [], removed: []}
+
+  defp api_keys(functions),
+    do: for(%Function{} = f <- functions, Function.api?(f), do: Function.key(f))
+
+  defp resolve(:shipped, %Tree{} = tree), do: MixFile.shipped_source(tree)
+  defp resolve(pattern, _tree), do: pattern
 
   @doc """
   Whether any function's body changed or any function was added or removed,
@@ -199,7 +223,7 @@ defmodule Presubmit.Query do
   Docs, specs, attributes, and formatting do not count, which makes this the
   right trigger for "code changes need test changes".
   """
-  @spec behaviour_changed?(Commit.t(), pattern()) :: boolean()
+  @spec behaviour_changed?(Commit.t(), source_pattern()) :: boolean()
   def behaviour_changed?(commit, pattern \\ nil) do
     %{added: added, removed: removed, body_changed: body_changed} =
       function_changes(commit, pattern)
@@ -207,20 +231,24 @@ defmodule Presubmit.Query do
     added != [] or removed != [] or body_changed != []
   end
 
-  @doc "Functions added, removed, and body-changed in files matching `pattern`."
-  @spec function_changes(Commit.t(), pattern()) :: %{
+  @doc """
+  Functions added, removed, and body-changed in files matching `pattern`.
+  A body change is matched against the function's file after the change.
+  """
+  @spec function_changes(Commit.t(), source_pattern()) :: %{
           added: [Function.t()],
           removed: [Function.t()],
           body_changed: [{Function.t(), Function.t()}]
         }
   def function_changes(commit, pattern \\ nil) do
     %{functions: f} = elixir_diff(commit)
+    after_pattern = resolve(pattern, commit.after)
 
     %{
-      added: Enum.filter(f.added, &Pattern.matches?(&1.path, pattern)),
-      removed: Enum.filter(f.removed, &Pattern.matches?(&1.path, pattern)),
+      added: functions_added(commit, pattern),
+      removed: functions_removed(commit, pattern),
       body_changed:
-        Enum.filter(f.body_changed, fn {_, new} -> Pattern.matches?(new.path, pattern) end)
+        Enum.filter(f.body_changed, fn {_, new} -> Pattern.matches?(new.path, after_pattern) end)
     }
   end
 

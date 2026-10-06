@@ -11,6 +11,7 @@ defmodule Presubmit.Scenarios.LibraryTest do
 
   alias Presubmit.Assertions.Mix, as: MixAssertions
   alias Presubmit.{Fixtures, Rules}
+  alias Presubmit.Source.Facts.Function
 
   setup_all do: %{repo: Fixtures.repo("library")}
 
@@ -33,6 +34,28 @@ defmodule Presubmit.Scenarios.LibraryTest do
       commit = scenario(repo, :deps_changed_with_lock)
       refute public_api_changed?(commit)
       assert_pass(run_rule(Rules.Changelog, :api_changes_logged, commit))
+    end
+
+    test "ignores test support, which the package does not ship", %{repo: repo} do
+      commit = scenario(repo, :test_support_added)
+      assert [%{kind: :def}] = functions_added(commit, Presubmit.Paths.test())
+      assert public_api_diff(commit) == %{added: [], removed: []}
+      assert_pass(run_rule(Rules.Changelog, :api_changes_logged, commit))
+    end
+
+    test "still names lib/ changes made beside test support", %{repo: repo} do
+      commit = scenario(repo, :test_support_and_api_added)
+      [{m, f, a}] = public_api_diff(commit).added
+      assert_fail(run_rule(Rules.Changelog, :api_changes_logged, commit), message)
+      assert message =~ "#{inspect(m)}.#{f}/#{a} added"
+
+      test_support =
+        for fun <- functions_added(commit, Presubmit.Paths.test()), do: Function.key(fun)
+
+      assert [_ | _] = test_support
+
+      for {test_m, test_f, test_a} <- test_support,
+          do: refute(message =~ "#{inspect(test_m)}.#{test_f}/#{test_a}")
     end
 
     test "honours a custom path", %{repo: repo} do
