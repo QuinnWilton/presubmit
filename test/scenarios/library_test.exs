@@ -83,6 +83,60 @@ defmodule Presubmit.Scenarios.LibraryTest do
     end
   end
 
+  describe "test support, which the package does not ship" do
+    test "Rules.Elixir :specs and :moduledoc leave it alone", %{repo: repo} do
+      commit = scenario(repo, :test_support_added)
+      assert [%{moduledoc: nil}] = module_facts_added(commit, Presubmit.Paths.test())
+      assert [%{kind: :def, spec?: false}] = functions_added(commit, Presubmit.Paths.test())
+      assert_pass(run_rule(Rules.Elixir, :specs, commit))
+      assert_pass(run_rule(Rules.Elixir, :moduledoc, commit))
+    end
+
+    test "Rules.Elixir :removals_deprecated lets it lose functions, but not lib/" do
+      mix_exs = """
+      defmodule P.MixProject do
+        def project, do: [elixirc_paths: elixirc_paths(Mix.env())]
+        defp elixirc_paths(:test), do: ["lib", "test/support"]
+        defp elixirc_paths(_), do: ["lib"]
+      end
+      """
+
+      removing = fn path ->
+        Presubmit.Commit.new(
+          before: %{"mix.exs" => mix_exs, path => "defmodule P.X do\n  def code, do: 1\nend\n"},
+          after: %{"mix.exs" => mix_exs, path => "defmodule P.X do\nend\n"}
+        )
+      end
+
+      assert_pass(run_rule(Rules.Elixir, :removals_deprecated, removing.("test/support/x.ex")))
+
+      assert_fail(
+        run_rule(Rules.Elixir, :removals_deprecated, removing.("lib/x.ex")),
+        message
+      )
+
+      assert message =~ "removed without a prior @deprecated:\n  P.X.code/0"
+    end
+
+    test "Rules.Elixir :specs follows elixirc_paths outside lib/" do
+      mix_exs = ~s(defmodule P.MixProject do\n  def project, do: [elixirc_paths: ["src"]]\nend\n)
+
+      commit =
+        Presubmit.Commit.new(
+          after: %{
+            "mix.exs" => mix_exs,
+            "src/p.ex" => "defmodule P do\n  @moduledoc false\n  def f, do: 1\nend\n",
+            "lib/q.ex" => "defmodule Q do\n  def g, do: 1\nend\n"
+          }
+        )
+
+      assert_fail(run_rule(Rules.Elixir, :specs, commit), message)
+      assert message =~ "have no @spec:\n  P.f/0"
+      refute message =~ "Q.g/0"
+      assert_pass(run_rule(Rules.Elixir, :moduledoc, commit))
+    end
+  end
+
   describe "removing a public function" do
     test "Rules.Elixir :removals_deprecated fails because it was never deprecated", %{repo: repo} do
       commit = scenario(repo, :function_removed_with_breaking_trailer)

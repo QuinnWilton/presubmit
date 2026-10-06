@@ -48,7 +48,7 @@ defmodule Presubmit.Assertions do
 
   import Presubmit.Assertions.Flunk, only: [flunk: 1, indent: 1]
 
-  alias Presubmit.{Commit, FileChange, Message, Paths, Pattern, Query, Tree}
+  alias Presubmit.{Commit, FileChange, Message, Pattern, Query, Tree}
   alias Presubmit.Source.Facts
   alias Presubmit.Source.Facts.Function
 
@@ -355,14 +355,16 @@ defmodule Presubmit.Assertions do
 
   @doc """
   Asserts every public function the commit adds in files matching `pattern`
-  (default: any `lib/` directory) has a `@spec`.
+  has a `@spec`. The default, `:shipped`, is the code the project ships
+  (`Presubmit.MixFile.shipped_source/1`), so test support compiled only
+  under `MIX_ENV=test` is exempt.
 
   Macros and `@impl` callbacks are exempt: callbacks take their contract from
   the behaviour, and macros are not conventionally spec'd. A spec for a
   head's full arity covers every arity its default arguments generate.
   """
-  @spec assert_specs(Commit.t(), pattern()) :: :ok
-  def assert_specs(%Commit{} = commit, pattern \\ Paths.lib()) do
+  @spec assert_specs(Commit.t(), Query.source_pattern()) :: :ok
+  def assert_specs(%Commit{} = commit, pattern \\ :shipped) do
     missing =
       for %Function{kind: :def, impl?: false} = f <- Query.functions_added(commit, pattern),
           not f.spec?,
@@ -375,12 +377,14 @@ defmodule Presubmit.Assertions do
   end
 
   @doc """
-  Asserts every module the commit adds in files matching `pattern`
-  (default: any `lib/` directory) declares a `@moduledoc` (`@moduledoc false` counts as a
-  deliberate choice).
+  Asserts every module the commit adds in files matching `pattern` declares
+  a `@moduledoc` (`@moduledoc false` counts as a deliberate choice). The
+  default, `:shipped`, is the code the project ships
+  (`Presubmit.MixFile.shipped_source/1`), so test support compiled only
+  under `MIX_ENV=test` is exempt.
   """
-  @spec assert_moduledoc(Commit.t(), pattern()) :: :ok
-  def assert_moduledoc(%Commit{} = commit, pattern \\ Paths.lib()) do
+  @spec assert_moduledoc(Commit.t(), Query.source_pattern()) :: :ok
+  def assert_moduledoc(%Commit{} = commit, pattern \\ :shipped) do
     missing =
       for m <- Query.module_facts_added(commit, pattern), is_nil(m.moduledoc), do: inspect(m.name)
 
@@ -391,14 +395,16 @@ defmodule Presubmit.Assertions do
   end
 
   @doc """
-  Asserts every API function the commit removes was marked `@deprecated`
-  before the commit, so consumers had a release to migrate. Functions marked
-  `@doc false` are not API and may be removed freely.
+  Asserts every API function the commit removes from the code the project
+  shipped was marked `@deprecated` before the commit, so consumers had a
+  release to migrate. Functions marked `@doc false` are not API, and test
+  support compiled only under `MIX_ENV=test` was never shipped; both may be
+  removed freely.
   """
   @spec assert_removals_deprecated(Commit.t()) :: :ok
   def assert_removals_deprecated(%Commit{} = commit) do
     undeprecated =
-      for %Function{} = f <- Query.functions_removed(commit),
+      for %Function{} = f <- Query.functions_removed(commit, :shipped),
           Function.api?(f),
           not f.deprecated?,
           do: format_function(f)

@@ -11,6 +11,8 @@
 ### Fixed
 
 - `Rules.Changelog` `:api_changes_logged` counted a public function in any changed `.ex` or `.exs` file as public API, test support and fixtures included. In a project whose `mix.exs` compiles `test/support` only under `MIX_ENV=test`, adding `def calls(module)` to `MyApp.Test.CallCount` in `test/support/call_count.ex` warned `MyApp.Test.CallCount.calls/1 added` until the changelog changed. The rule now counts only the files the project ships, the `.ex` files under its `:prod` `elixirc_paths`: an added function by the `mix.exs` after the change, a removed one by the `mix.exs` before it. `Query.public_api_diff/1` and `public_api_changed?/1` report the same. `Source.Diff.public_added/1` and its siblings still cover every changed file.
+- `Rules.Elixir` `:removals_deprecated` counted a function removed from any changed file, so deleting `def code, do: ...` from a test-support module failed it for want of a `@deprecated` that nobody outside the project could have seen. It now counts only functions removed from the code the project shipped before the change.
+- `Rules.Elixir` `:specs` and `:moduledoc` checked every `lib/` directory, whatever the project compiles: in a project with `elixirc_paths: ["src"]` a new `src/` function without a `@spec` passed. They now check the code the project ships, the same files as `:api_changes_logged`; `assert_specs/2` and `assert_moduledoc/2` default to the `:shipped` pattern instead of `Paths.lib()`. For the usual project, which compiles `lib/` (and `test/support` only in tests), nothing changes.
 
 ## 0.2.0 - 2026-10-03
 
