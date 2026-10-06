@@ -15,7 +15,7 @@ The idea and the name come from Chromium's [`PRESUBMIT.py`](https://www.chromium
 
 ```elixir
 # mix.exs
-{:presubmit, "~> 0.2.0", only: [:dev, :test], runtime: false}
+{:presubmit, "~> 0.2.1", only: [:dev, :test], runtime: false}
 ```
 
 ```sh
