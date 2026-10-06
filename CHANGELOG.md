@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `MixFile.elixirc_paths/2`: the paths a project compiles Elixir from in the `:prod` environment, the one it is compiled in as a dependency, read from `mix.exs` without evaluating it. It follows the usual `elixirc_paths(Mix.env())` helper, so for a project whose `mix.exs` has `defp elixirc_paths(:test), do: ["lib", "test/support"]` and `defp elixirc_paths(_), do: ["lib"]` it returns `["lib"]`. An umbrella root gets `[]`; a value it cannot read gets Mix's default, `["lib"]`.
+- `MixFile.shipped_source/1`: a path pattern for the `.ex` files every project in the tree ships, joined to each project's directory (`Paths.lib_source/0`, the `.ex` files under any `lib/`, when the tree has no `mix.exs`).
+
 ## 0.2.0 - 2026-10-03
 
 ### Added

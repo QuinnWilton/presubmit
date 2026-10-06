@@ -9,6 +9,14 @@ defmodule Presubmit.Paths do
   @spec lib() :: Regex.t()
   def lib, do: ~r{(^|/)lib/}
 
+  @doc """
+  Elixir files Mix would compile from `lib/` at the root or under any
+  directory: the stand-in for `Presubmit.MixFile.shipped_source/1` in a
+  tree with no `mix.exs`.
+  """
+  @spec lib_source() :: Regex.t()
+  def lib_source, do: ~r{(^|/)lib/.*\.ex$}
+
   @doc "Tests: `test/` at the root or under any directory."
   @spec test() :: Regex.t()
   def test, do: ~r{(^|/)test/}
