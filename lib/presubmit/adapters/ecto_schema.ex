@@ -56,7 +56,7 @@ defmodule Presubmit.Adapters.EctoSchema do
         _ -> nil
       end) || {nil, nil}
 
-    items = if block, do: block_items(block), else: []
+    items = block_items(block)
 
     %__MODULE__{
       module: module.name,
