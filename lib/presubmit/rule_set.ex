@@ -116,7 +116,9 @@ defmodule Presubmit.RuleSet do
   Declares a rule. `check` is a function of the commit, or of the commit and
   the set's options. `attrs` may give `sources:`, the change-set sources the
   rule applies to (`[:head, :rev]` for rules that only make sense on a
-  commit); elsewhere it is skipped.
+  commit); elsewhere it is skipped. It may give `on_autosquash: :check` for a
+  rule that checks `fixup!`/`squash!`/`amend!` commits, which every other
+  rule skips (see `Presubmit.Rule`).
   """
   defmacro rule(id, name, check, attrs \\ []) do
     quote do

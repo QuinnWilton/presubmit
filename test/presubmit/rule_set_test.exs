@@ -184,6 +184,60 @@ defmodule Presubmit.RuleSetTest do
     assert Rule.exemptions(Commit.new(after: %{}, message: "s\n\nNo-Presubmit: false\n")) == []
   end
 
+  describe "autosquash commits" do
+    defp about_autosquash do
+      Rule.new(
+        :about_autosquash,
+        "checks autosquash commits",
+        fn _commit -> raise Presubmit.Violation, message: "squash it" end,
+        on_autosquash: :check
+      )
+    end
+
+    test "skip every rule but those declaring on_autosquash: :check" do
+      [never] = RuleSet.expand({Sample, only: [:never]})
+      about = about_autosquash()
+
+      for {subject, kind} <- [
+            {"fixup! s", "fixup"},
+            {"squash! s\n\nMore.", "squash"},
+            {"amend! s\n\nt", "amend"}
+          ] do
+        commit = Commit.new(after: %{"a" => "a\n"}, message: subject)
+        reason = "a #{kind}! commit is checked once it is squashed into its target"
+        assert Rule.run(never, commit) == {:skip, reason}
+        assert Rule.run(about, commit) == {:fail, "squash it"}
+      end
+    end
+
+    test "are only those git folds" do
+      [never] = RuleSet.expand({Sample, only: [:never]})
+
+      for subject <- ["fixup!s", "s\n\nfixup! s"] do
+        assert {:fail, "nope"} = Rule.run(never, Commit.new(after: %{}, message: subject))
+      end
+
+      assert {:fail, "nope"} = Rule.run(never, Commit.new(after: %{}))
+    end
+
+    test "still honour the commit's own exemption trailers first" do
+      about = about_autosquash()
+      commit = Commit.new(after: %{}, message: "fixup! s\n\nPresubmit-Skip: about_autosquash\n")
+      assert Rule.run(about, commit) == {:skip, "exempted by the commit's Presubmit-Skip trailer"}
+    end
+
+    test "on_autosquash: takes only :skip or :check" do
+      assert Rule.new(:r, "r", fn _ -> :ok end, on_autosquash: :check).on_autosquash == :check
+      assert Rule.new(:r, "r", fn _ -> :ok end).on_autosquash == :skip
+
+      assert_raise ArgumentError,
+                   "rule :r: on_autosquash: must be :skip or :check, got :run",
+                   fn ->
+                     Rule.new(:r, "r", fn _ -> :ok end, on_autosquash: :run)
+                   end
+    end
+  end
+
   test "a rule set's moduledoc lists its rules" do
     {:docs_v1, _, _, _, %{"en" => doc}, _, _} = Code.fetch_docs(Presubmit.Rules.Ecto)
 

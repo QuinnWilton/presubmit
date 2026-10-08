@@ -7,7 +7,7 @@ defmodule Presubmit.Formatter do
   commit gate.
   """
 
-  alias Presubmit.{Commit, JSON, Query}
+  alias Presubmit.{Commit, JSON, Message, Query}
   alias Presubmit.Runner.{Report, Result}
 
   @type format :: :text | :json
@@ -74,11 +74,21 @@ defmodule Presubmit.Formatter do
     lines =
       ["Examining #{describe(commit)}"] ++
         exemption ++
+        autosquash_lines(commit) ++
         [""] ++
         Enum.flat_map(report.results, &result_lines(&1, color?)) ++
         ["", summary(counts, Report.status(report), color?)]
 
     Enum.map_join(lines, "\n", & &1) <> "\n"
+  end
+
+  defp autosquash_lines(%Commit{message: nil}), do: []
+
+  defp autosquash_lines(%Commit{message: message}) do
+    case Message.autosquash(message) do
+      nil -> []
+      kind -> ["  #{kind}! commit — rules skipped until it is squashed into its target"]
+    end
   end
 
   defp result_lines(%Result{rule: rule, outcome: :pass}, color?),

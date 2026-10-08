@@ -12,6 +12,13 @@ defmodule Presubmit.Rule do
   exist locally and be autosquashed, so the rule applies to committed
   revisions (`:head`, `:rev`) and not to the index a hook is checking.
 
+  Rules skip autosquash commits, those whose subject starts `fixup! `,
+  `squash! ` or `amend! ` (`Presubmit.Message.autosquash/1`). Such a commit's
+  message and diff are not what lands: `git rebase --autosquash` folds them
+  into an earlier commit, and the rules check that commit as it ends up. A
+  rule about autosquash commits themselves declares `on_autosquash: :check`;
+  `no_fixup` does, so a range that still holds one fails.
+
   A rule's `severity` is `:error` (a violation fails the run) or `:warn` (it
   is reported but does not fail). Its `scope`, when set, restricts the
   change set to files matching a pattern before the check runs, so one
@@ -27,7 +34,17 @@ defmodule Presubmit.Rule do
   alias Presubmit.{Commit, Message, NoMessageError, Violation}
 
   @enforce_keys [:id, :name, :check]
-  defstruct [:id, :name, :check, set: nil, opts: [], sources: nil, severity: :error, scope: nil]
+  defstruct [
+    :id,
+    :name,
+    :check,
+    set: nil,
+    opts: [],
+    sources: nil,
+    severity: :error,
+    scope: nil,
+    on_autosquash: :skip
+  ]
 
   @type check ::
           (Commit.t() -> :ok | {:skip, String.t()})
@@ -39,7 +56,8 @@ defmodule Presubmit.Rule do
           check: check(),
           set: module() | nil,
           opts: keyword(),
-          sources: [atom()] | nil
+          sources: [atom()] | nil,
+          on_autosquash: :skip | :check
         }
 
   @type outcome ::
@@ -52,7 +70,14 @@ defmodule Presubmit.Rule do
   @spec new(atom(), String.t(), check(), keyword()) :: t()
   def new(id, name, check, attrs \\ [])
       when is_atom(id) and is_binary(name) and is_function(check) do
-    struct!(__MODULE__, [id: id, name: name, check: check] ++ attrs)
+    case Keyword.get(attrs, :on_autosquash, :skip) do
+      setting when setting in [:skip, :check] ->
+        struct!(__MODULE__, [id: id, name: name, check: check] ++ attrs)
+
+      other ->
+        raise ArgumentError,
+              "rule #{inspect(id)}: on_autosquash: must be :skip or :check, got #{inspect(other)}"
+    end
   end
 
   @doc """
@@ -60,7 +85,8 @@ defmodule Presubmit.Rule do
 
   A `Presubmit.Violation` is a failure. A skip is: a
   `Presubmit.NoMessageError` (a message rule against the index or working
-  tree), a check returning `{:skip, reason}` (nothing configured), or a
+  tree), a check returning `{:skip, reason}` (nothing configured), an
+  autosquash commit (unless the rule declares `on_autosquash: :check`), or a
   change set outside the rule's `sources`. Any other exception is reported
   as an error rather than crashing the run.
   """
@@ -69,6 +95,9 @@ defmodule Presubmit.Rule do
     cond do
       exempted?(rule, commit) ->
         {:skip, "exempted by the commit's #{exemption_trailer(rule, commit)} trailer"}
+
+      kind = skipped_autosquash(rule, commit) ->
+        {:skip, "a #{kind}! commit is checked once it is squashed into its target"}
 
       is_list(sources) and source not in sources ->
         {:skip, "only checked on #{Enum.map_join(sources, "/", &inspect/1)} change sets"}
@@ -111,6 +140,12 @@ defmodule Presubmit.Rule do
       ids -> id in ids
     end
   end
+
+  defp skipped_autosquash(%__MODULE__{on_autosquash: :check}, _commit), do: nil
+  defp skipped_autosquash(_rule, %Commit{message: nil}), do: nil
+
+  defp skipped_autosquash(%__MODULE__{on_autosquash: :skip}, %Commit{message: message}),
+    do: Message.autosquash(message)
 
   defp exemption_trailer(_rule, commit),
     do: if(exemptions(commit) == :all, do: "No-Presubmit", else: "Presubmit-Skip")

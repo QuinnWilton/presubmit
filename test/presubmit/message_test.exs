@@ -52,6 +52,23 @@ defmodule Presubmit.MessageTest do
     end
   end
 
+  describe "autosquash/1" do
+    test "reads git's autosquash prefixes from the subject" do
+      assert Message.autosquash(Message.parse("fixup! [argus] return a finding")) == :fixup
+      assert Message.autosquash(Message.parse("squash! Fix it\n\nMore.\n")) == :squash
+      assert Message.autosquash(Message.parse("amend! Fix it\n\nFix it properly\n")) == :amend
+      assert Message.autosquash(Message.parse("fixup! fixup! Fix it")) == :fixup
+    end
+
+    test "is nil for any other subject, including a prefix git would not fold" do
+      assert Message.autosquash(Message.parse("Fix it")) == nil
+      assert Message.autosquash(Message.parse("fixup!Fix it")) == nil
+      assert Message.autosquash(Message.parse("Fixup! Fix it")) == nil
+      assert Message.autosquash(Message.parse("[fixup] Fix it")) == nil
+      assert Message.autosquash(Message.parse("Fix it\n\nfixup! not the subject\n")) == nil
+    end
+  end
+
   describe "body_lines/1" do
     test "numbers the body's lines as they appear in the message" do
       raw = "Subject\nwrapped\n\n\nOne.\nTwo.\n\nThree.\n\nSigned-off-by: A <a@x>\n"

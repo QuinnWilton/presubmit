@@ -38,6 +38,24 @@ defmodule Presubmit.Scenarios.MessageTest do
 
   defp tooling_opts, do: [trailers: [{&touches?(&1, ~r{^\.tooling/}), "Tooling", nil}]]
 
+  describe "autosquash commits" do
+    test ":no_fixup fails a committed fixup! commit", %{repo: repo} do
+      commit = scenario(repo, :fixup)
+      assert_fail run_rule(Rules.Message, :no_fixup, commit), message
+      assert message =~ subject(commit)
+    end
+
+    test "every other rule skips it, whatever its subject says", %{repo: repo} do
+      commit = scenario(repo, :fixup)
+      opts = [subject: ~r/^\[\w+\] \S/, max_subject_length: 10] ++ scope_opts()
+
+      for id <- [:subject, :subject_length, :scope] do
+        assert {:skip, "a fixup! commit is checked once it is squashed into its target"} =
+                 run_rule(Rules.Message, id, commit, opts)
+      end
+    end
+  end
+
   describe ":scope" do
     test "passes", %{repo: repo} do
       assert_pass run_rule(Rules.Message, :scope, scenario(repo, :scoped_correctly), scope_opts())

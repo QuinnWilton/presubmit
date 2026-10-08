@@ -119,6 +119,22 @@ defmodule Presubmit.CLITest do
 
     assert out =~ "— Add hooked\n"
     assert out =~ "✓ subject fits the configured length"
+
+    {0, out} =
+      run([
+        "--repo",
+        repo,
+        "--staged",
+        "--message",
+        "fixup! [demo] add hooked",
+        "--no-color",
+        "--config",
+        write_config(repo, "[{Presubmit.Rules.Message, subject: ~r/^\\[\\w+\\] \\S/}]")
+      ])
+
+    assert out =~ "  fixup! commit — rules skipped until it is squashed into its target\n"
+    assert out =~ "- subject matches the configured pattern (skipped: a fixup! commit is checked"
+    refute out =~ "✗"
   end
 
   test "--base checks the amended commit rather than the delta since HEAD" do

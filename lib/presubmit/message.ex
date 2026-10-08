@@ -80,6 +80,21 @@ defmodule Presubmit.Message do
   end
 
   @doc """
+  What `git rebase --autosquash` does with a commit, read from its subject:
+  `:fixup`, `:squash`, or `:amend` for a subject that starts `fixup! `,
+  `squash! ` or `amend! ` (the subjects `git commit --fixup` and `--squash`
+  write), and `nil` for any other.
+
+  The prefixes are git's own, trailing space included: git does not fold a
+  `fixup!x` commit into anything, so neither is it an autosquash commit here.
+  """
+  @spec autosquash(t()) :: :fixup | :squash | :amend | nil
+  def autosquash(%__MODULE__{subject: "fixup! " <> _}), do: :fixup
+  def autosquash(%__MODULE__{subject: "squash! " <> _}), do: :squash
+  def autosquash(%__MODULE__{subject: "amend! " <> _}), do: :amend
+  def autosquash(%__MODULE__{}), do: nil
+
+  @doc """
   The body's lines, each with its 1-based line number in the message
   (the subject's first line is line 1).
 

@@ -7,6 +7,8 @@ defmodule Presubmit.Rules.Message do
   override with `exempt:` (a list of regexes, `[]` to exempt nothing).
   `no_fixup` applies to committed revisions only: `fixup!`/`squash!` commits
   are meant to exist locally and be autosquashed before they reach `main`.
+  The other rules skip those commits altogether, as every rule does
+  (`Presubmit.Rule`): a `fixup! [tag] text` subject is not the one that lands.
 
   Options:
 
@@ -37,7 +39,8 @@ defmodule Presubmit.Rules.Message do
     :no_fixup,
     "no fixup!/squash!/amend! commits",
     &refute_subject(&1, ~r/^(fixup|squash|amend)!/),
-    sources: [:head, :rev]
+    sources: [:head, :rev],
+    on_autosquash: :check
   )
 
   rule :subject_length, "subject fits the configured length", fn commit, opts ->

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `Message.autosquash/1`: `:fixup`, `:squash` or `:amend` for a subject that starts with git's `fixup! `, `squash! ` or `amend! ` autosquash prefix, `nil` otherwise.
+- Rules take `on_autosquash: :check` to run on autosquash commits, which every other rule now skips.
+
+### Changed
+
+- Every rule but `Rules.Message` `:no_fixup` skips a `fixup!`, `squash!` or `amend!` commit, which `git rebase --autosquash` folds into an earlier commit, so its own message and diff never land. The `commit-msg` hook used to refuse `git commit --fixup` under any `subject:` pattern, since `fixup! [tag] text` does not start with `[tag]`. The report opens with `fixup! commit — rules skipped until it is squashed into its target`. `:no_fixup` still fails such a commit on `--head`, `--rev` and `--range`, so CI refuses a branch that was never squashed.
+
 ## 0.2.1 - 2026-10-06
 
 ### Added

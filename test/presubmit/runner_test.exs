@@ -132,6 +132,16 @@ defmodule Presubmit.RunnerTest do
       refute text =~ "✗"
     end
 
+    test "text announces that an autosquash commit's rules are skipped" do
+      commit = Commit.new(after: %{}, message: "fixup! s")
+      text = [Runner.run(commit, rules())] |> Formatter.render(:text) |> IO.iodata_to_binary()
+
+      assert text =~
+               "Examining synthetic change set\n  fixup! commit — rules skipped until it is squashed into its target\n\n"
+
+      assert text =~ "4 rules: 4 skipped\n"
+    end
+
     test "text describes commits, the index, and the working tree", %{repo: repo} do
       commit = Commit.rev("scenario/pure_move", repo: repo)
 
